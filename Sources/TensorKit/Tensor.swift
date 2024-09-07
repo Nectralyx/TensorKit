@@ -299,8 +299,8 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     }
     
     // Broadcast to new dimensions
-    @inlinable
-    public func expand(to targetDimensions: [Int]) -> Tensor {
+    @usableFromInline
+    func expand(to targetDimensions: [Int]) -> Tensor {
         guard targetDimensions != shape else {
             return self
         }
