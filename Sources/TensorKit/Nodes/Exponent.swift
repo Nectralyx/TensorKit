@@ -12,6 +12,7 @@
 import Foundation
 import Accelerate
 
+@usableFromInline
 func hiddenExp<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
     let result = Tensor<T>(.empty, shape: input.shape)
     var size = Int32(input.dataSize)
@@ -50,6 +51,7 @@ func hiddenExp<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
     return result
 }
 
+@inlinable
 public func exp<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
     let result = Tensor<T>(.empty, shape: input.shape, calculate_grad: input.gradient != nil)
     var size = Int32(input.dataSize)

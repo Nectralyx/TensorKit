@@ -11,6 +11,7 @@
 
 import Foundation
 
+@usableFromInline
 internal func softmaxJacobian<T: TensorType>(_ y: Tensor<T>) -> [T] {
     
     let dimension = y.shape.count - 1
@@ -74,6 +75,7 @@ internal func softmaxJacobian<T: TensorType>(_ y: Tensor<T>) -> [T] {
     return jacobianData
 }
 
+@usableFromInline
 internal func softmaxGradients<T: TensorType>(_ jacobians: [T], jShape: [Int], outputGrads: [T], outputShape: [Int]) -> [T] {
     let jCount = outputShape.reduce(1, *) / outputShape.last!
     let strides = generateStrides(jShape)
@@ -93,7 +95,7 @@ internal func softmaxGradients<T: TensorType>(_ jacobians: [T], jShape: [Int], o
     }
     return result
 }
-
+@inlinable
 public func Softmax<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
     // Ensure the dimension is valid
     let dimension = input.shape.count - 1
