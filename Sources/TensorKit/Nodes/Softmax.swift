@@ -95,6 +95,7 @@ internal func softmaxGradients<T: TensorType>(_ jacobians: [T], jShape: [Int], o
     }
     return result
 }
+
 @inlinable
 public func Softmax<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
     // Ensure the dimension is valid
