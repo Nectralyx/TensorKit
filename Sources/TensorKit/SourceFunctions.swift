@@ -233,3 +233,98 @@ public func multiply<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
 public protocol TensorType: Codable, BinaryFloatingPoint {}
 extension Float: TensorType {}
 extension Double: TensorType {}
+
+@inlinable
+public func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
+    // Calculate the total length of the resulting array
+    let repeatedLength = array.count * count
+    if T.self == Float.self {
+        // Create an output array with the required length, initialized to zero
+        var result = [Float](repeating: 0, count: repeatedLength)
+        
+        // Use unsafe mutable buffer pointers for efficient copying
+        result.withUnsafeMutableBufferPointer { resultPointer in
+            // Get a pointer to the start of the result buffer
+            //let resultBase = resultPointer.baseAddress!
+            guard let resultBase = resultPointer.baseAddress else {
+                fatalError("Result base address is nil")
+            }
+            // Copy the original array into the result buffer for the first time
+            array.withUnsafeBufferPointer { arrayPointer in
+                // Get a pointer to the start of the array buffer
+                guard let arrayBase = arrayPointer.baseAddress else {
+                    fatalError("Array base address is nil")
+                }
+                // Copy the original array into the result buffer
+                vDSP_mmov(arrayBase as! UnsafePointer<Float>, resultBase, vDSP_Length(array.count), 1, vDSP_Length(array.count), 1)
+                // Repeat the copy operation using exponential growth
+                var currentLength = array.count
+                while currentLength < repeatedLength {
+                    // Double the size of copied elements each time
+                    let remainingLength = min(currentLength, repeatedLength - currentLength)
+                    vDSP_mmov(resultBase, resultBase + currentLength, vDSP_Length(remainingLength), 1, vDSP_Length(remainingLength), 1)
+                    currentLength += remainingLength
+                }
+            }
+        }
+        return result as! [T]
+    } else if T.self == Double.self {
+        // Create an output array with the required length, initialized to zero
+        var result = [Double](repeating: 0, count: repeatedLength)
+        
+        // Use unsafe mutable buffer pointers for efficient copying
+        result.withUnsafeMutableBufferPointer { resultPointer in
+            // Get a pointer to the start of the result buffer
+            let resultBase = resultPointer.baseAddress!
+            
+            // Copy the original array into the result buffer for the first time
+            array.withUnsafeBufferPointer { arrayPointer in
+                // Get a pointer to the start of the array buffer
+                let arrayBase = arrayPointer.baseAddress!
+                
+                // Copy the original array into the result buffer
+                vDSP_mmovD(arrayBase as! UnsafePointer<Double>, resultBase, vDSP_Length(array.count), 1, vDSP_Length(array.count), 1)
+                
+                // Repeat the copy operation using exponential growth
+                var currentLength = array.count
+                while currentLength < repeatedLength {
+                    // Double the size of copied elements each time
+                    let remainingLength = min(currentLength, repeatedLength - currentLength)
+                    vDSP_mmovD(resultBase, resultBase + currentLength, vDSP_Length(remainingLength), 1, vDSP_Length(remainingLength), 1)
+                    currentLength += remainingLength
+                }
+            }
+        }
+        
+        return result as! [T]
+    } else {
+        // Create an output array with the required length, initialized to zero
+        var result = [Float](repeating: 0, count: repeatedLength)
+        
+        // Use unsafe mutable buffer pointers for efficient copying
+        result.withUnsafeMutableBufferPointer { resultPointer in
+            // Get a pointer to the start of the result buffer
+            let resultBase = resultPointer.baseAddress!
+            
+            // Copy the original array into the result buffer for the first time
+            array.map{ Float($0) }.withUnsafeBufferPointer { arrayPointer in
+                // Get a pointer to the start of the array buffer
+                let arrayBase = arrayPointer.baseAddress!
+                
+                // Copy the original array into the result buffer
+                vDSP_mmov(arrayBase, resultBase, vDSP_Length(array.count), 1, vDSP_Length(array.count), 1)
+                
+                // Repeat the copy operation using exponential growth
+                var currentLength = array.count
+                while currentLength < repeatedLength {
+                    // Double the size of copied elements each time
+                    let remainingLength = min(currentLength, repeatedLength - currentLength)
+                    vDSP_mmov(resultBase, resultBase + currentLength, vDSP_Length(remainingLength), 1, vDSP_Length(remainingLength), 1)
+                    currentLength += remainingLength
+                }
+            }
+        }
+        
+        return result.map { T($0) }
+    }
+}

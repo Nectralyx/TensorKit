@@ -15,7 +15,6 @@ import Accelerate
 public extension Tensor {
     @inlinable
     static func -(lhs: Tensor, rhs: Tensor) -> Tensor {
-        
         let finalShape = mergeShapes(lhs.shape, rhs.shape)
         let lhs = lhs.expand(to: finalShape)
         let rhs = rhs.expand(to: finalShape)
