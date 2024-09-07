@@ -37,34 +37,35 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     public var dataSize: Int {
         return shape.reduce(1, *)
     }
-    
+    @inlinable
     public init(_ input: [[[T]]], calculate_grad: Bool = false) {
         self.shape = [input.count, input[0].count, input[0][0].count]
         self.data = input.flatMap { $0.flatMap { $0 } }
         self.gradient = calculate_grad ? [T](repeating: 0.0, count: data.count) : nil
         //self.calculate_grad = calculate_grad
     }
-    
+    @inlinable
     public init(_ input: [[T]], calculate_grad: Bool = false) {
         self.shape = [input.count, input[0].count]
         self.data = input.flatMap{ $0 }
         self.gradient = calculate_grad ? [T](repeating: 0.0, count: data.count) : nil
         //self.calculate_grad = calculate_grad
     }
-    
+    @inlinable
     public init(_ input: [T], shape: [Int], calculate_grad: Bool = false) {
         self.shape = shape
         self.data = input
         self.gradient = calculate_grad ? [T](repeating: 0.0, count: data.count) : nil
         //self.calculate_grad = calculate_grad
     }
-    
+    @inlinable
     public init(_ input: T, calculate_grad: Bool = false) {
         self.shape = [1]
         self.data = [input]
         self.gradient = calculate_grad ? [T](repeating: 0.0, count: data.count) : nil
         //self.calculate_grad = calculate_grad
     }
+    @inlinable
     public init(_ initializer: TensorInitialization = .zeros, shape: [Int], calculate_grad: Bool = false) {
         self.shape = shape
         switch initializer {
@@ -98,7 +99,6 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         self.gradient = calculate_grad ? [T](repeating: 0.0, count: shape.reduce(1, *)) : nil
        // self.calculate_grad = calculate_grad
     }
-    
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(data, forKey: .data)
@@ -107,7 +107,6 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         try container.encode(gradient, forKey: .gradient)
         //try container.encode(calculate_grad, forKey: .calculate_grad)
     }
-    
     public required init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.data = try container.decode([T].self, forKey: .data)
@@ -116,7 +115,6 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         self.gradient = try container.decode([T].self, forKey: .gradient)
         //self.calculate_grad = try container.decode(Bool.self, forKey: .calculate_grad)
     }
-    
     enum CodingKeys: CodingKey {
         case data
         case shape
@@ -124,7 +122,6 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         case gradient
        // case calculate_grad
     }
-    
     // Recursive function to format the tensor
     private func formatTensor(_ data: [T], shape: [Int], depth: Int = 0) -> String {
         // Base case: if shape has only one dimension, print the array directly
@@ -216,7 +213,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         return result
     }
     
-    
+    @inlinable
     public func sum(along: [Int]) -> Tensor {
         var result = self
         for i in along {
@@ -233,7 +230,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         }
         return result
     }*/
-    
+    @inlinable
     public func sum() -> Tensor {
         var result = self
         result.shape = [1]
@@ -285,7 +282,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         
         return Tensor(data, shape: newDimensions)
     }*/
-    
+    @inlinable
     public func reshape(to newDimensions: [Int]) -> Tensor {
         let totalElements = shape.reduce(1, *)
         let newTotalElements = newDimensions.reduce(1, *)
@@ -300,7 +297,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         }
         fatalError("Could Not reshape data properly")
     }
-    
+    @inlinable
     // Broadcast to new dimensions
     public func expand(to targetDimensions: [Int]) -> Tensor {
         guard targetDimensions != shape else {
@@ -466,6 +463,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         ]
         return result
     }
+    @inlinable
     public func indexToFlatIndex(_ indices: [Int]) -> Int {
             // Convert multi-dimensional indices to a flat index
             var flatIndex = 0
@@ -476,7 +474,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
             }
             return flatIndex
         }
-    
+    @inlinable
     public func backward(_ grad: [T] = Array(repeating: 1.0, count: 0), printSteps: Bool = false) {
         // Check if the gradient sizes match
         let grad = grad.isEmpty ? [T](repeating: 1.0, count: gradient!.count) : grad
