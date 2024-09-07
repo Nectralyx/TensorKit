@@ -12,6 +12,7 @@ import Foundation
 import Accelerate
 
 public extension Tensor {
+    @inlinable
     func transpose() -> Tensor {
         let result = Tensor(.empty, shape: shape, calculate_grad: gradient != nil)
         let rows = shape.dropLast().last!

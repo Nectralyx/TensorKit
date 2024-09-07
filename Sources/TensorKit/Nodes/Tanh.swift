@@ -11,6 +11,7 @@
 
 import Foundation
 
+@inlinable
 public func Tanh<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
     let result = Tensor<T>(.empty, shape: input.shape, calculate_grad: input.gradient != nil)
     result.data = input.data.map{ Tanh($0) }

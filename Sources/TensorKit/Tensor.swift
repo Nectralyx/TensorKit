@@ -502,7 +502,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     }
 }
 
-
+@inlinable
 public func selectShape(from shape: [Int], using indices: [Int]) -> [Int] {
     var selectedShape: [Int] = []
     for index in indices {
@@ -512,7 +512,7 @@ public func selectShape(from shape: [Int], using indices: [Int]) -> [Int] {
     }
     return selectedShape
 }
-
+@inlinable
 public func generateStrides(_ shape: [Int]) -> [Int] {
     var result = [Int](repeating: 1, count: shape.count)
     var stride = 1
@@ -522,11 +522,12 @@ public func generateStrides(_ shape: [Int]) -> [Int] {
     }
     return result
 }
-
+@inlinable
 public func calculateIndex(strides: [Int], index: [Int]) -> Int {
     let a = zip(strides, index).map(*)
     return a.reduce(0, +)
 }
+@inlinable
 public func sum<T: TensorType>(_ input: [T], shape: [Int], along: Int) -> [T] {
     // Ensure the dimension is valid
     precondition(along < shape.count, "Invalid dimension for sum")
@@ -554,6 +555,7 @@ public func sum<T: TensorType>(_ input: [T], shape: [Int], along: Int) -> [T] {
 
 
 // Helper function to calculate the flattened index
+@inlinable
 public func flattenedIndex(of index: Int, withShape newShape: [Int], along dimension: Int, innerIndex: Int, originalShape: [Int]) -> Int {
     var indices = [Int](repeating: 0, count: originalShape.count)
     
@@ -575,6 +577,7 @@ public func flattenedIndex(of index: Int, withShape newShape: [Int], along dimen
     }
 }
 
+@inlinable
 public func sum<T: TensorType>(_ data: [T], shape: [Int], along: [Int]) -> [T] {
     var result = data
     for i in along {
@@ -583,6 +586,7 @@ public func sum<T: TensorType>(_ data: [T], shape: [Int], along: [Int]) -> [T] {
     return result
 }
 
+@inlinable
 public func sum<T: TensorType>(_ data: [T], shape: [Int], to: [Int]) -> [T] {
     var result = data
     var toShape = to
@@ -598,6 +602,7 @@ public func sum<T: TensorType>(_ data: [T], shape: [Int], to: [Int]) -> [T] {
     return result
 }
 
+@inlinable
 public func sum<T: TensorType>(_ data: [T], shape: [Int]) -> T {
     var result = data
     var toShape = [T](repeating: 1, count: shape.count)
@@ -613,6 +618,7 @@ public func sum<T: TensorType>(_ data: [T], shape: [Int]) -> T {
     return result[0]
 }
 
+@inlinable
 public func mergeShapes(_ a: [Int], _ b: [Int]) -> [Int] {
     guard a != b else {
         return a
@@ -626,6 +632,7 @@ public func mergeShapes(_ a: [Int], _ b: [Int]) -> [Int] {
     }
 }
 
+@inlinable
 public func multiply<T: TensorType>(_ input: [T], s: T) -> [T] {
     var result = [T]()
     let totalElements = input.count
@@ -685,6 +692,7 @@ public func multiply<T: TensorType>(_ input: [T], s: T) -> [T] {
     return result
 }
 
+@inlinable
 public func divide<T: TensorType>(_ input: [T], s: T) -> [T] {
     var result = [T]()
     let totalElements = input.count
@@ -743,6 +751,7 @@ public func divide<T: TensorType>(_ input: [T], s: T) -> [T] {
     return result
 }
 
+@inlinable
 public func inverseDivide<T: TensorType>(_ input: [T], s: T) -> [T] {
     var result = [T]()
     let totalElements = input.count
@@ -801,6 +810,7 @@ public func inverseDivide<T: TensorType>(_ input: [T], s: T) -> [T] {
     return result
 }
 
+@inlinable
 public func matrixMultiply<T: TensorType>(_ a: [T], _ b: [T], aShape: [Int], bShape: [Int]) -> [T] {
     guard aShape.last! == bShape.dropLast().last! else {
         fatalError("Incorrect shapes for matrix multiplication")
@@ -888,6 +898,7 @@ public func matrixMultiply<T: TensorType>(_ a: [T], _ b: [T], aShape: [Int], bSh
     return result
 }
 
+@inlinable
 public func transpose<T: TensorType>(_ input: [T], shape: [Int]) -> [T] {
     var result = [T]()
     let rows = shape.dropLast().last!
@@ -934,6 +945,7 @@ public func transpose<T: TensorType>(_ input: [T], shape: [Int]) -> [T] {
     return result
 }
 
+@inlinable
 public func transpose<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
     var result = [T]()
     let rows = input.shape.dropLast().last!

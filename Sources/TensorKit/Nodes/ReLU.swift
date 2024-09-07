@@ -12,6 +12,7 @@
 import Foundation
 import Accelerate
 
+@inlinable
 public func ReLU<T: TensorType>(_ input: Tensor<T>, leak: T = 0) -> Tensor<T> {
     let result = Tensor<T>(.empty, shape: input.shape, calculate_grad: input.gradient != nil)
     if leak == T(0) {

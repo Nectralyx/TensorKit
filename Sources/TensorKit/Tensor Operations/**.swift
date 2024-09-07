@@ -13,6 +13,7 @@ import Foundation
 import Accelerate
 
 public extension Tensor {
+    @inlinable
     static func **(lhs: Tensor, rhs: Tensor) -> Tensor {
         guard lhs.shape.last! == rhs.shape.dropLast().last! else {
             return Tensor(shape: [])

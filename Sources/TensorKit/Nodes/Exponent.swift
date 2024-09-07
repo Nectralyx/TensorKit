@@ -12,7 +12,7 @@
 import Foundation
 import Accelerate
 
-fileprivate func hiddenExp<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
+func hiddenExp<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
     let result = Tensor<T>(.empty, shape: input.shape)
     var size = Int32(input.dataSize)
     if T.self == Float.self {

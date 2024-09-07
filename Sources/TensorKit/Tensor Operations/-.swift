@@ -13,6 +13,7 @@ import Foundation
 import Accelerate
 
 public extension Tensor {
+    @inlinable
     static func -(lhs: Tensor, rhs: Tensor) -> Tensor {
         
         let finalShape = mergeShapes(lhs.shape, rhs.shape)

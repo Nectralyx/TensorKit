@@ -15,6 +15,7 @@ import Accelerate
 infix operator **: MultiplicationPrecedence
 
 public extension Array {
+    @inlinable
     func inserting(_ newElement: Element, at i: Int) -> Array {
         var copy = self
         copy.insert(newElement, at: i)
@@ -22,6 +23,7 @@ public extension Array {
     }
 }
 
+@inlinable
 public func softmax<T: TensorType>(_ x: [T]) -> [T] {
     // Find the maximum value in the array
         let maxVal = x.max() ?? 0.0
@@ -38,6 +40,7 @@ public func softmax<T: TensorType>(_ x: [T]) -> [T] {
     return softmaxValues.map{ T($0) }
 }
 
+@inlinable
 func softmaxJacobian<T: TensorType>(_ Y: [T]) -> [[T]] {
     let n = Y.count
     var softmax = Array(repeating: Array(repeating: 0 as T, count: n), count: n)
@@ -59,39 +62,50 @@ func softmaxJacobian<T: TensorType>(_ Y: [T]) -> [[T]] {
     return softmax
 }
 
+@inlinable
 public func ReLU<T: TensorType>(_ x: T) -> T {
     return max(0, x)
 }
 
 // Define the derivative of the ReLU function
+@inlinable
 func ReLUDerivative<T: TensorType>(_ x: T) -> T {
     return x > 0 ? 1.0 : 0.0
 }
 
+@inlinable
 public func Sigmoid<T: TensorType>(_ x: T) -> T {
     return T(1.0) / (T(1.0) + T(exp(-Double(x))))
 }
+
+@inlinable
 func SigmoidDerivative<T: TensorType>(_ x: T) -> T {
     let s = Sigmoid(x)
     return s * (1.0 - s)
 }
+
+@inlinable
 public func Tanh<T: TensorType>(_ x: T) -> T {
     return T((exp(Double(x)) - exp(-Double(x))) / (exp(Double(x)) + exp(-Double(x))))
 }
 
+@inlinable
 func TanhDerivative<T: TensorType>(_ x: T) -> T {
     let t = Tanh(x)
     return 1.0 - t * t
 }
 
+@inlinable
 public func LeakyReLU<T: TensorType>(_ x: T, alpha: T = 0.01) -> T {
     return x > 0 ? 1.0 : alpha * x
 }
 
+@inlinable
 func LeakyReLUDerivative<T: TensorType>(_ x: T, alpha: T = 0.01) -> T {
     return x > 0 ?  1.0 : alpha
 }
 
+@inlinable
 public func add<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
     guard x.count == y.count else {
         fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
@@ -154,6 +168,7 @@ public func add<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
 
 }
 
+@inlinable
 public func multiply<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
     guard x.count == y.count else {
         fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
