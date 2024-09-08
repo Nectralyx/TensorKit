@@ -395,13 +395,9 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                         a += 3
                     }
                 } else {
-                    /*let returnCount = targetDimensions[i] - newDimensions[i]
+                    let returnCount = targetDimensions[i] - newDimensions[i]
                     broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
-                    newDimensions[i] = targetDimensions[i]*/
-                    var a = 0
-                    for i in 0..<1000 {
-                        a += 3
-                    }
+                    newDimensions[i] = targetDimensions[i]
                 }
             }
         }
