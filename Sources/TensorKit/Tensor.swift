@@ -298,9 +298,6 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     }
     
     // Broadcast to new dimensions
-    @inlinable
-    //@_alwaysEmitIntoClient
-    @inline(__always)
     /*public func expand(to targetDimensions: [Int]) -> Tensor {
         guard targetDimensions != shape else {
             return self
@@ -348,7 +345,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         ]
         return result
     }*/
-    
+    @inlinable
     public func expand(to targetDimensions: [Int]) -> Tensor {
         return Tensor(.random_small, shape: targetDimensions)
     }
