@@ -23,7 +23,6 @@ public enum TensorInitialization: Codable {
     case empty
 }
 
-
 public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     public var description: String {
         return formatTensor(data, shape: shape)
@@ -300,6 +299,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     
     // Broadcast to new dimensions
     @inlinable
+    @_alwaysEmitIntoClient
     public func expand(to targetDimensions: [Int]) -> Tensor {
         guard targetDimensions != shape else {
             return self
