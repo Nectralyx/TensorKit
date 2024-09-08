@@ -349,7 +349,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         return result
     }*/
     
-    func expand(to targetDimensions: [Int]) -> Tensor {
+    public func expand(to targetDimensions: [Int]) -> Tensor {
         return Tensor(.random_small, shape: targetDimensions)
     }
     
