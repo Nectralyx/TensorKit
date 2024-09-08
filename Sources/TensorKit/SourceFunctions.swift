@@ -234,8 +234,8 @@ public protocol TensorType: Codable, BinaryFloatingPoint {}
 extension Float: TensorType {}
 extension Double: TensorType {}
 
-@inlinable
-public func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
+@usableFromInline
+internal func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
     // Calculate the total length of the resulting array
     let repeatedLength = array.count * count
     if T.self == Float.self {

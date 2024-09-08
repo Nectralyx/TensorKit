@@ -349,11 +349,6 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     
     @inlinable
     public func testingSpeed(to targetDimensions: [Int]) -> Tensor {
-        var a = 0
-        for i in 0..<1000 {
-            a += 2
-        }
-        
         guard targetDimensions != shape else {
             return self
         }
@@ -391,13 +386,22 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                 if i == newDimensions.count - 1 {
                     let returnCount = targetDimensions[i] - newDimensions[i]
                     let count = dataSize / newDimensions.last!
+                    /*
                     for row in 0..<count {
                         broadcastedData.insert(contentsOf: Array(repeating: data[row], count: returnCount), at: row * targetDimensions[i])
+                    }*/
+                    var a = 0
+                    for i in 0..<1000 {
+                        a += 3
                     }
                 } else {
-                    let returnCount = targetDimensions[i] - newDimensions[i]
+                    /*let returnCount = targetDimensions[i] - newDimensions[i]
                     broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
-                    newDimensions[i] = targetDimensions[i]
+                    newDimensions[i] = targetDimensions[i]*/
+                    var a = 0
+                    for i in 0..<1000 {
+                        a += 3
+                    }
                 }
             }
         }
