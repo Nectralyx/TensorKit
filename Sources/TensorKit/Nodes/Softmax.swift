@@ -99,7 +99,7 @@ internal func softmaxGradients<T: TensorType>(_ jacobians: [T], jShape: [Int], o
 public func Softmax<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
     // Ensure the dimension is valid
     let dimension = input.shape.count - 1
-    //precondition(dimension < input.shape.count, "Invalid dimension for softmax")
+    precondition(dimension < input.shape.count, "Invalid dimension for softmax")
     
     let shape = input.shape
     let dimSize = shape[dimension]
