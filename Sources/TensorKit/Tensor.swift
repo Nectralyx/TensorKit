@@ -298,7 +298,8 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     }
     
     // Broadcast to new dimensions
-    /*public func expand(to targetDimensions: [Int]) -> Tensor {
+    @inlinable
+    public func expand(to targetDimensions: [Int]) -> Tensor {
         guard targetDimensions != shape else {
             return self
         }
@@ -344,12 +345,16 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
             (self, { v in TensorKit.sum(v.gradient!, shape: v.shape, along: gradientMap)})
         ]
         return result
-    }*/
-    @inlinable
-    public func expand(to targetDimensions: [Int]) -> Tensor {
-        return Tensor(.random_small, shape: targetDimensions)
     }
     
+    @inlinable
+    public func testingSpeed() -> [Int] {
+        var a = 0
+        for i in 0..<1000 {
+            a += 2
+        }
+        return [1, 2, 3, a]
+    }
     
     @inlinable
     public func indexToFlatIndex(_ indices: [Int]) -> Int {
