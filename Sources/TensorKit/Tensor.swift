@@ -358,11 +358,33 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
             return self
         }
         
+        func canExpand(_ a: [Int], _ b: [Int]) -> Bool {
+            for (x, y) in zip(a, b) {
+                if x == y || x == 1 || y == 1 {
+                    continue
+                } else {
+                    return false
+                }
+            }
+            return true
+        }
+        
         var newDimensions = shape
         var mainCandidate = newDimensions
         while mainCandidate.count < targetDimensions.count {
             mainCandidate.insert(1, at: 0)
         }
+        
+        if canExpand(mainCandidate, targetDimensions) {
+            newDimensions = mainCandidate
+        } else {
+            while newDimensions.count < targetDimensions.count {
+                newDimensions.insert(1, at: newDimensions.count)
+            }
+        }
+        
+        let gradientMap = newDimensions.enumerated().filter{ $0.element == 1 }.map{ $0.offset }
+        var broadcastedData = data
         
         return self
     }
