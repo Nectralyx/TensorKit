@@ -301,21 +301,12 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     @inlinable
     //@_alwaysEmitIntoClient
     @inline(__always)
-    /*public func expand(to targetDimensions: [Int]) -> Tensor {
+    public func expand(to targetDimensions: [Int]) -> Tensor {
         guard targetDimensions != shape else {
             return self
         }
         
-        func canExpand(_ a: [Int], _ b: [Int]) -> Bool {
-            for (x, y) in zip(a, b) {
-                if x == y || x == 1 || y == 1 {
-                    continue
-                } else {
-                    return false
-                }
-            }
-            return true
-        }
+        
         
         
         var newDimensions = shape
@@ -331,21 +322,6 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                 newDimensions.insert(1, at: newDimensions.count)
             }
         }
-        
-        /*func sumExceptIndex(_ array: [Int], upToIndex: Int) -> Int? {
-            // Check if the index is valid
-            guard upToIndex >= 0 && upToIndex < array.count else {
-                print("Index is out of bounds")
-                return nil
-            }
-            
-            // Compute the sum of all elements
-            let totalSum = array.suffix(from: upToIndex + 1).reduce(1, *)
-            // Subtract the value at the index to exclude
-            let result = totalSum
-            
-            return result
-        }*/
         
         let gradientMap = newDimensions.enumerated().filter{ $0.element == 1 }.map{ $0.offset }
         var broadcastedData = data
@@ -371,171 +347,8 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
             (self, { v in TensorKit.sum(v.gradient!, shape: v.shape, along: gradientMap)})
         ]
         return result
-    }*/
-    public func expand(to targetDimensions: [Int]) -> Tensor {
-        guard targetDimensions != shape else {
-            return self
-        }
-        
-        func canExpand(_ a: [Int], _ b: [Int]) -> Bool {
-            for (x, y) in zip(a, b) {
-                if x == y || x == 1 || y == 1 {
-                    continue
-                } else {
-                    return false
-                }
-            }
-            return true
-        }
-        
-        func repeatArray(_ array: [T], count: Int) -> [T] {
-            // Calculate the total length of the resulting array
-            let repeatedLength = array.count * count
-            if T.self == Float.self {
-                // Create an output array with the required length, initialized to zero
-                var result = [Float](repeating: 0, count: repeatedLength)
-                
-                // Use unsafe mutable buffer pointers for efficient copying
-                result.withUnsafeMutableBufferPointer { resultPointer in
-                    // Get a pointer to the start of the result buffer
-                    //let resultBase = resultPointer.baseAddress!
-                    guard let resultBase = resultPointer.baseAddress else {
-                        fatalError("Result base address is nil")
-                    }
-                    // Copy the original array into the result buffer for the first time
-                    array.withUnsafeBufferPointer { arrayPointer in
-                        // Get a pointer to the start of the array buffer
-                        guard let arrayBase = arrayPointer.baseAddress else {
-                            fatalError("Array base address is nil")
-                        }
-                        // Copy the original array into the result buffer
-                        vDSP_mmov(arrayBase as! UnsafePointer<Float>, resultBase, vDSP_Length(array.count), 1, vDSP_Length(array.count), 1)
-                        // Repeat the copy operation using exponential growth
-                        var currentLength = array.count
-                        while currentLength < repeatedLength {
-                            // Double the size of copied elements each time
-                            let remainingLength = min(currentLength, repeatedLength - currentLength)
-                            vDSP_mmov(resultBase, resultBase + currentLength, vDSP_Length(remainingLength), 1, vDSP_Length(remainingLength), 1)
-                            currentLength += remainingLength
-                        }
-                    }
-                }
-                return result as! [T]
-            } else if T.self == Double.self {
-                // Create an output array with the required length, initialized to zero
-                var result = [Double](repeating: 0, count: repeatedLength)
-                
-                // Use unsafe mutable buffer pointers for efficient copying
-                result.withUnsafeMutableBufferPointer { resultPointer in
-                    // Get a pointer to the start of the result buffer
-                    let resultBase = resultPointer.baseAddress!
-                    
-                    // Copy the original array into the result buffer for the first time
-                    array.withUnsafeBufferPointer { arrayPointer in
-                        // Get a pointer to the start of the array buffer
-                        let arrayBase = arrayPointer.baseAddress!
-                        
-                        // Copy the original array into the result buffer
-                        vDSP_mmovD(arrayBase as! UnsafePointer<Double>, resultBase, vDSP_Length(array.count), 1, vDSP_Length(array.count), 1)
-                        
-                        // Repeat the copy operation using exponential growth
-                        var currentLength = array.count
-                        while currentLength < repeatedLength {
-                            // Double the size of copied elements each time
-                            let remainingLength = min(currentLength, repeatedLength - currentLength)
-                            vDSP_mmovD(resultBase, resultBase + currentLength, vDSP_Length(remainingLength), 1, vDSP_Length(remainingLength), 1)
-                            currentLength += remainingLength
-                        }
-                    }
-                }
-                
-                return result as! [T]
-            } else {
-                // Create an output array with the required length, initialized to zero
-                var result = [Float](repeating: 0, count: repeatedLength)
-                
-                // Use unsafe mutable buffer pointers for efficient copying
-                result.withUnsafeMutableBufferPointer { resultPointer in
-                    // Get a pointer to the start of the result buffer
-                    let resultBase = resultPointer.baseAddress!
-                    
-                    // Copy the original array into the result buffer for the first time
-                    array.map{ Float($0) }.withUnsafeBufferPointer { arrayPointer in
-                        // Get a pointer to the start of the array buffer
-                        let arrayBase = arrayPointer.baseAddress!
-                        
-                        // Copy the original array into the result buffer
-                        vDSP_mmov(arrayBase, resultBase, vDSP_Length(array.count), 1, vDSP_Length(array.count), 1)
-                        
-                        // Repeat the copy operation using exponential growth
-                        var currentLength = array.count
-                        while currentLength < repeatedLength {
-                            // Double the size of copied elements each time
-                            let remainingLength = min(currentLength, repeatedLength - currentLength)
-                            vDSP_mmov(resultBase, resultBase + currentLength, vDSP_Length(remainingLength), 1, vDSP_Length(remainingLength), 1)
-                            currentLength += remainingLength
-                        }
-                    }
-                }
-                
-                return result.map { T($0) }
-            }
-        }
-        var newDimensions = shape
-        var mainCandidate = newDimensions
-        while mainCandidate.count < targetDimensions.count {
-            mainCandidate.insert(1, at: 0)
-        }
-        
-        if canExpand(mainCandidate, targetDimensions) {
-            newDimensions = mainCandidate
-        } else {
-            while newDimensions.count < targetDimensions.count {
-                newDimensions.insert(1, at: newDimensions.count)
-            }
-        }
-        
-        func sumExceptIndex(_ array: [Int], upToIndex: Int) -> Int? {
-            // Check if the index is valid
-            guard upToIndex >= 0 && upToIndex < array.count else {
-                print("Index is out of bounds")
-                return nil
-            }
-            
-            // Compute the sum of all elements
-            let totalSum = array.suffix(from: upToIndex + 1).reduce(1, *)
-            // Subtract the value at the index to exclude
-            let result = totalSum
-            
-            return result
-        }
-        
-        let gradientMap = newDimensions.enumerated().filter{ $0.element == 1 }.map{ $0.offset }
-        var broadcastedData = data
-        
-        
-        for i in (0..<newDimensions.count).reversed() {
-            if newDimensions[i] == 1 && targetDimensions[i] > 1 {
-                if i == newDimensions.count - 1 {
-                    let returnCount = targetDimensions[i] - newDimensions[i]
-                    let count = dataSize / newDimensions.last!
-                    for row in 0..<count {
-                        broadcastedData.insert(contentsOf: Array(repeating: data[row], count: returnCount), at: row * targetDimensions[i])
-                    }
-                } else {
-                    let returnCount = targetDimensions[i] - newDimensions[i]
-                    broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
-                    newDimensions[i] = targetDimensions[i]
-                }
-            }
-        }
-        let result = Tensor(broadcastedData, shape: targetDimensions, calculate_grad: gradient != nil)
-        result.operation = "Expand"
-        result.parents = [
-            (self, { v in TensorKit.sum(v.gradient!, shape: v.shape, along: gradientMap)})
-        ]
-        return result
     }
+    
     
     @inlinable
     public func indexToFlatIndex(_ indices: [Int]) -> Int {

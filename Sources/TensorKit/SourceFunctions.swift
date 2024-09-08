@@ -328,3 +328,15 @@ public func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
         return result.map { T($0) }
     }
 }
+
+@inlinable
+public func canExpand(_ a: [Int], _ b: [Int]) -> Bool {
+     for (x, y) in zip(a, b) {
+         if x == y || x == 1 || y == 1 {
+             continue
+         } else {
+             return false
+         }
+     }
+     return true
+ }
