@@ -396,7 +396,8 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                     }
                 } else {
                     let returnCount = targetDimensions[i] - newDimensions[i]
-                    broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
+                    //broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
+                    broadcastedData.append(contentsOf: [0, 1, 2, 3])
                     newDimensions[i] = targetDimensions[i]
                 }
             }
