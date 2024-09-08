@@ -353,6 +353,17 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         for i in 0..<1000 {
             a += 2
         }
+        
+        guard targetDimensions != shape else {
+            return self
+        }
+        
+        var newDimensions = shape
+        var mainCandidate = newDimensions
+        while mainCandidate.count < targetDimensions.count {
+            mainCandidate.insert(1, at: 0)
+        }
+        
         return self
     }
     
