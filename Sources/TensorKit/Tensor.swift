@@ -386,6 +386,22 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         let gradientMap = newDimensions.enumerated().filter{ $0.element == 1 }.map{ $0.offset }
         var broadcastedData = data
         
+        for i in (0..<newDimensions.count).reversed() {
+            if newDimensions[i] == 1 && targetDimensions[i] > 1 {
+                if i == newDimensions.count - 1 {
+                    let returnCount = targetDimensions[i] - newDimensions[i]
+                    let count = dataSize / newDimensions.last!
+                    for row in 0..<count {
+                        broadcastedData.insert(contentsOf: Array(repeating: data[row], count: returnCount), at: row * targetDimensions[i])
+                    }
+                } else {
+                    let returnCount = targetDimensions[i] - newDimensions[i]
+                    broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
+                    newDimensions[i] = targetDimensions[i]
+                }
+            }
+        }
+        
         return self
     }
     
