@@ -81,7 +81,6 @@ internal func softmaxGradients<T: TensorType>(_ jacobians: [T], jShape: [Int], o
     let strides = generateStrides(jShape)
     _ = generateStrides(outputShape)
     var result = [T]()
-    _ = DispatchQueue(label: "x10.mx.Synapse.Softmax.softmaxGradients")
     
     for i in 0..<jCount {
         let index = calculateIndex(strides: strides, index: Array(repeating: 0, count: outputShape.count).inserting(i, at: jShape.count - 3))
