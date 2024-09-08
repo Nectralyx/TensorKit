@@ -21,7 +21,7 @@ let package = Package(
                             // Apply optimization settings for release builds
                             .unsafeFlags(["-O"], .when(configuration: .release)),
                             // Apply no optimizations for debug builds
-                            .unsafeFlags(["-Onone"], .when(configuration: .debug))
+                            .unsafeFlags(["-O"], .when(configuration: .debug))
                         ]
         ),
             

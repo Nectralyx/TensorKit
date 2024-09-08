@@ -301,7 +301,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     @inlinable
     //@_alwaysEmitIntoClient
     @inline(__always)
-    public func expand(to targetDimensions: [Int]) -> Tensor {
+    /*public func expand(to targetDimensions: [Int]) -> Tensor {
         guard targetDimensions != shape else {
             return self
         }
@@ -347,6 +347,10 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
             (self, { v in TensorKit.sum(v.gradient!, shape: v.shape, along: gradientMap)})
         ]
         return result
+    }*/
+    
+    func expand(to targetDimensions: [Int]) -> Tensor {
+        return Tensor(.random_small, shape: targetDimensions)
     }
     
     
