@@ -384,16 +384,9 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         
         let gradientMap = newDimensions.enumerated().filter{ $0.element == 1 }.map{ $0.offset }
         let resultSize = targetDimensions.reduce(1, *)
-        var broadcastedData = UnsafeMutableBufferPointer<T>.allocate(capacity: resultSize)
         
-        defer {
-            broadcastedData.deallocate()  // Make sure to free the allocated memory after usage.
-        }
-        // Copy the existing broadcastedData into the buffer.
-        broadcastedData.baseAddress!.initialize(from: data, count: dataSize)
-        
-        //var broadcastedData = data
-        var advance = dataSize
+        var broadcastedData = data
+       // var advance = dataSize
         for i in (0..<newDimensions.count).reversed() {
             if newDimensions[i] == 1 && targetDimensions[i] > 1 {
                 if i == newDimensions.count - 1 {
@@ -410,9 +403,9 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                 } else {
                     let returnCount = targetDimensions[i] - newDimensions[i]
                     //broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
-                    let result = repeatArray(Array(broadcastedData), count: returnCount)
-                    broadcastedData.baseAddress!.advanced(by: advance).initialize(from: result, count: result.count)
+                    //let result = repeatArray(Array(broadcastedData), count: returnCount)
                     //broadcastedData.append(contentsOf: result)
+                    broadcastedData += repeatArray(Array(broadcastedData), count: returnCount)
                     newDimensions[i] = targetDimensions[i]
                 }
             }
