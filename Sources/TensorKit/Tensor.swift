@@ -332,7 +332,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
             }
         }
         
-        func sumExceptIndex(_ array: [Int], upToIndex: Int) -> Int? {
+        /*func sumExceptIndex(_ array: [Int], upToIndex: Int) -> Int? {
             // Check if the index is valid
             guard upToIndex >= 0 && upToIndex < array.count else {
                 print("Index is out of bounds")
@@ -345,11 +345,10 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
             let result = totalSum
             
             return result
-        }
+        }*/
         
         let gradientMap = newDimensions.enumerated().filter{ $0.element == 1 }.map{ $0.offset }
         var broadcastedData = data
-        
         
         for i in (0..<newDimensions.count).reversed() {
             if newDimensions[i] == 1 && targetDimensions[i] > 1 {
