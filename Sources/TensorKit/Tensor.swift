@@ -348,12 +348,12 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     }
     
     @inlinable
-    public func testingSpeed() -> [Int] {
+    public func testingSpeed(to targetDimenions: [Int]) -> [Int] {
         var a = 0
         for i in 0..<1000 {
             a += 2
         }
-        return [1, 2, 3, a]
+        return targetDimenions.inserting(a, at: 0)
     }
     
     @inlinable
