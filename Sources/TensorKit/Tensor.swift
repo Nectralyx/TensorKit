@@ -386,7 +386,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         let resultSize = targetDimensions.reduce(1, *)
         
         var broadcastedData = [T](repeating: 0, count: resultSize)
-        broadcastedData[0..<dataSize] = data as! ArraySlice
+        broadcastedData[0..<dataSize] = ArraySlice(data)
         var advance = dataSize
         for i in (0..<newDimensions.count).reversed() {
             if newDimensions[i] == 1 && targetDimensions[i] > 1 {
@@ -407,7 +407,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                     //let result = repeatArray(Array(broadcastedData), count: returnCount)
                     //broadcastedData.append(contentsOf: result)
                     broadcastedData += repeatArray(broadcastedData, count: returnCount)
-                    broadcastedData[advance..<broadcastedData.count - 1] = repeatArray(broadcastedData, count: returnCount) as! ArraySlice
+                    broadcastedData[advance..<broadcastedData.count - 1] = ArraySlice(repeatArray(broadcastedData, count: returnCount))
                     newDimensions[i] = targetDimensions[i]
                 }
             }
