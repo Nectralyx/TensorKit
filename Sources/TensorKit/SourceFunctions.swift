@@ -237,6 +237,7 @@ extension Double: TensorType {}
 @usableFromInline
 internal func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
     // Calculate the total length of the resulting array
+    let tt1 = CFAbsoluteTimeGetCurrent()
     let repeatedLength = array.count * count
     if T.self == Float.self {
         // Create an output array with the required length, initialized to zero
@@ -284,8 +285,10 @@ internal func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
         }
         
         
-        
-        return result as! [T]
+        let tt2 = CFAbsoluteTimeGetCurrent()
+        let out = result as! [T]
+        print("Total repeatArray() time: \(tt2 - tt1)")
+        return out
     } else if T.self == Double.self {
         // Create an output array with the required length, initialized to zero
         var result = [Double](repeating: 0, count: repeatedLength)
