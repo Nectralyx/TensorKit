@@ -408,7 +408,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                     //broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
                     //Start RepeatArray
                     
-                    
+                    let tt1 = CFAbsoluteTimeGetCurrent()
                     // Calculate the total length of the resulting array
                     let repeatedLength = broadcastedData.count * returnCount
                     if T.self == Float.self {
@@ -442,7 +442,8 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                         }
                         broadcastedData.append(contentsOf: result as! [T])
                     }
-                    
+                    let tt2 = CFAbsoluteTimeGetCurrent()
+                    print("Completed repeatArray in: \(tt2 - tt1)")
                     // End RepeatArray
                     let t4 = CFAbsoluteTimeGetCurrent()
                     //broadcastedData.append(contentsOf: array)
