@@ -240,8 +240,9 @@ internal func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
     let repeatedLength = array.count * count
     if T.self == Float.self {
         // Create an output array with the required length, initialized to zero
+        let t1 = CFAbsoluteTimeGetCurrent()
         var result = [Float](repeating: 0, count: repeatedLength)
-        
+        let t2 = CFAbsoluteTimeGetCurrent()
         // Use unsafe mutable buffer pointers for efficient copying
         result.withUnsafeMutableBufferPointer { resultPointer in
             // Get a pointer to the start of the result buffer
@@ -255,18 +256,35 @@ internal func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
                 guard let arrayBase = arrayPointer.baseAddress else {
                     fatalError("Array base address is nil")
                 }
+                let t3 = CFAbsoluteTimeGetCurrent()
                 // Copy the original array into the result buffer
                 vDSP_mmov(arrayBase as! UnsafePointer<Float>, resultBase, vDSP_Length(array.count), 1, vDSP_Length(array.count), 1)
                 // Repeat the copy operation using exponential growth
+                let t4 = CFAbsoluteTimeGetCurrent()
                 var currentLength = array.count
                 while currentLength < repeatedLength {
+                    let t5 = CFAbsoluteTimeGetCurrent()
                     // Double the size of copied elements each time
                     let remainingLength = min(currentLength, repeatedLength - currentLength)
+                    let t6 = CFAbsoluteTimeGetCurrent()
                     vDSP_mmov(resultBase, resultBase + currentLength, vDSP_Length(remainingLength), 1, vDSP_Length(remainingLength), 1)
+                    let t7 = CFAbsoluteTimeGetCurrent()
                     currentLength += remainingLength
+                    let t8 = CFAbsoluteTimeGetCurrent()
+                    print("calculated reamining length: \(t6 - t5)")
+                    print("processed copy: \(t7 - t6)")
+                    print("calculated remaining length again: \(t8 - t7)")
                 }
+                print("repeatArray() DIAGNOSTIC")
+                print("Created result array: \(t2 - t1)")
+                print("made safety checks: \(t3 - t2)")
+                print("processed first copy: \(t4 - t3)")
+                print("processed more copies: \(CFAbsoluteTimeGetCurrent() - t4)")
             }
         }
+        
+        
+        
         return result as! [T]
     } else if T.self == Double.self {
         // Create an output array with the required length, initialized to zero
