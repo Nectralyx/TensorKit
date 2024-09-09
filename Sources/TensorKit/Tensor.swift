@@ -385,8 +385,9 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         let gradientMap = newDimensions.enumerated().filter{ $0.element == 1 }.map{ $0.offset }
         let resultSize = targetDimensions.reduce(1, *)
         
-        var broadcastedData = data
-       // var advance = dataSize
+        var broadcastedData = [T](repeating: 0, count: resultSize)
+        broadcastedData[0..<dataSize] = data as! ArraySlice
+        var advance = dataSize
         for i in (0..<newDimensions.count).reversed() {
             if newDimensions[i] == 1 && targetDimensions[i] > 1 {
                 if i == newDimensions.count - 1 {
@@ -406,6 +407,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                     //let result = repeatArray(Array(broadcastedData), count: returnCount)
                     //broadcastedData.append(contentsOf: result)
                     broadcastedData += repeatArray(broadcastedData, count: returnCount)
+                    broadcastedData[advance..<broadcastedData.count - 1] = repeatArray(broadcastedData, count: returnCount) as! ArraySlice
                     newDimensions[i] = targetDimensions[i]
                 }
             }
