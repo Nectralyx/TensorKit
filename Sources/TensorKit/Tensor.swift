@@ -410,7 +410,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                     
                     
                     let tt1 = CFAbsoluteTimeGetCurrent()
-                    let repeatedLength = array.count * returnCount
+                    let repeatedLength = broadcastedData.count * returnCount
                     if T.self == Float.self {
                         // Create an output array with the required length, initialized to zero
                         let t1 = CFAbsoluteTimeGetCurrent()
