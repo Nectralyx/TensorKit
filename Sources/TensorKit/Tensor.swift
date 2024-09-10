@@ -443,7 +443,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                         let ttt2 = CFAbsoluteTimeGetCurrent()
                         print("Inner repeatArray: \(ttt2 - ttt1)")
                         //broadcastedData.append(contentsOf: result as! [T])
-                        broadcastedData = MTLConcatenate(broadcastedData, result as! [T])
+                        appendVector(result as! [T], to: &broadcastedData)
                     }
 
 
