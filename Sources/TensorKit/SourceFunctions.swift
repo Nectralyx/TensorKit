@@ -367,16 +367,23 @@ public func appendVector<T: FloatingPoint>(_ source: [T], to destination: inout 
     let sourceCount = source.count
     let destinationCount = destination.count
     
-    // Pre-allocate memory for the destination vector to fit both the old and new elements
-    destination.reserveCapacity(destinationCount + sourceCount)
+    // Allocate a new array with enough capacity to hold both the original and new data
+    var result = [T](repeating: 0, count: destinationCount + sourceCount)
     
-    // Extend destination with zeroes temporarily to ensure there's enough space
-    destination.append(contentsOf: repeatElement(0 as T, count: sourceCount))
-    
-    // Use Accelerate's vDSP_mmov to copy the source data into the end of the destination vector
-    source.withUnsafeBufferPointer { srcBuffer in
-        destination.withUnsafeMutableBufferPointer { destBuffer in
-            vDSP_mmov(srcBuffer.baseAddress! as! UnsafePointer<Float>, destBuffer.baseAddress! as! UnsafeMutablePointer<Float> + destinationCount, vDSP_Length(sourceCount), 1, vDSP_Length(sourceCount), 1)
+    // Use vDSP_mmov to copy the original destination data into the result array
+    destination.withUnsafeBufferPointer { destBuffer in
+        result.withUnsafeMutableBufferPointer { resultBuffer in
+            vDSP_mmov(destBuffer.baseAddress! as! UnsafePointer<Float>, resultBuffer.baseAddress! as! UnsafeMutablePointer<Float>, vDSP_Length(destinationCount), 1, vDSP_Length(destinationCount), 1)
         }
     }
+    
+    // Use vDSP_mmov to copy the source data into the result array after the original data
+    source.withUnsafeBufferPointer { srcBuffer in
+        result.withUnsafeMutableBufferPointer { resultBuffer in
+            vDSP_mmov(srcBuffer.baseAddress! as! UnsafePointer<Float>, resultBuffer.baseAddress! as! UnsafeMutablePointer<Float> + destinationCount, vDSP_Length(sourceCount), 1, vDSP_Length(sourceCount), 1)
+        }
+    }
+    
+    // Replace the destination array with the result
+    destination = result
 }
