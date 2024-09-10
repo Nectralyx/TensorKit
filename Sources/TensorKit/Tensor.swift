@@ -403,15 +403,15 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                     let t1 = CFAbsoluteTimeGetCurrent()
                     let returnCount = targetDimensions[i] - newDimensions[i]
                     let t2 = CFAbsoluteTimeGetCurrent()
-                    var array = [T](repeating: 0.0, count: broadcastedData.count * returnCount)
                     let t3 = CFAbsoluteTimeGetCurrent()
                     //broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
                     //Start RepeatArray
                     
-                    let tt1 = CFAbsoluteTimeGetCurrent()
+                    
                     // Calculate the total length of the resulting array
                     let repeatedLength = broadcastedData.count * returnCount
                     if T.self == Float.self {
+                        let ttt1 = CFAbsoluteTimeGetCurrent()
                         // Create an output array with the required length, initialized to zero
                         var result = [Float](repeating: 0, count: repeatedLength)
                         
@@ -440,15 +440,18 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
                                 }
                             }
                         }
+                        let ttt2 = CFAbsoluteTimeGetCurrent()
+                        print("Inner repeatArray: \(ttt2 - ttt1)")
                         broadcastedData.append(contentsOf: result as! [T])
                     }
-                    let tt2 = CFAbsoluteTimeGetCurrent()
-                    print("Completed repeatArray in: \(tt2 - tt1)")
+
+
                     // End RepeatArray
                     let t4 = CFAbsoluteTimeGetCurrent()
                     //broadcastedData.append(contentsOf: array)
                     let t5 = CFAbsoluteTimeGetCurrent()
                     newDimensions[i] = targetDimensions[i]
+                    
                     print("Calculated internal properties: \(t2 - t1)")
                     print("Generated array: \(t3 - t2)")
                     print("Generated array data: \(t4 - t3)")
