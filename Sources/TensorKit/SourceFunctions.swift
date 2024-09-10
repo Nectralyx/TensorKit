@@ -361,3 +361,57 @@ public func canExpand(_ a: [Int], _ b: [Int]) -> Bool {
      }
      return true
  }
+
+@inlinable
+public func MTLConcatenate<T: TensorType>(_ a: [T], _ b: [T]) -> [T] {
+    let device = MTLCreateSystemDefaultDevice()!
+    let queue = device.makeCommandQueue()!
+    let library = device.makeDefaultLibrary()!
+    let function = library.makeFunction(name: "vectorConcat")!
+    let state = try! device.makeComputePipelineState(function: function)
+    let buffer = queue.makeCommandBuffer()!
+    var numA = UInt32(a.count)
+    var numB = UInt32(b.count)
+    let ar1Buff = device.makeBuffer(bytes: a, length: MemoryLayout<Float>.stride * a.count)!
+    let ar2Buff = device.makeBuffer(bytes: b, length: MemoryLayout<Float>.stride * b.count)!
+    let resultBuff = device.makeBuffer(length: MemoryLayout<Float>.stride * (a.count + b.count))!
+
+    let commander = buffer.makeComputeCommandEncoder()!
+    commander.setComputePipelineState(state)
+    commander.setBuffer(ar1Buff, offset: 0, index: 0)
+    commander.setBuffer(ar2Buff, offset: 0, index: 1)
+    commander.setBytes(&numA, length: MemoryLayout<UInt32>.size, index: 3)
+    commander.setBytes(&numB, length: MemoryLayout<UInt32>.size, index: 4)
+    commander.setBuffer(resultBuff, offset: 0, index: 2)
+    
+    let execWidth = state.threadExecutionWidth
+    let groups = MTLSize(width: Int(numA) + Int(numB), height: 1, depth: 1)
+    
+    commander.dispatchThreadgroups(groups, threadsPerThreadgroup: MTLSize(width: execWidth, height: 1, depth: 1))
+    commander.endEncoding()
+    buffer.commit()
+    buffer.waitUntilCompleted()
+
+    //let resultMatrixPointer = resultBuff.contents().bindMemory(to: Float.self, capacity: a.count * a[0].count * a[0][0].count)
+    
+    func convertToSwiftArrayConcatenate(_ buffer: MTLBuffer, count: Int) -> [T] {
+        // Access the contents of the Metal buffer as a pointer to Float
+        let pointer = buffer.contents().assumingMemoryBound(to: Float.self)
+        
+        // Calculate the number of elements in the buffer
+        let elementCount = count
+        
+        // Create a buffer pointer from the raw pointer
+        let bufferPointer = UnsafeBufferPointer(start: pointer, count: elementCount)
+        
+        // Convert the buffer pointer to an array of Float
+        let floatArray = Array(bufferPointer)
+        
+        // Convert the array of Float to a 2D array of Double
+        //let doubleArray = floatArray.map { T($0) }
+        //let result = stride(from: 0, to: doubleArray.count, by: columns).map { Array(doubleArray[$0..<$0+columns]) }
+        
+        return floatArray as! [T]
+    }
+    return convertToSwiftArrayConcatenate(resultBuff, count: Int(numA + numB))
+}
