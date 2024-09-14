@@ -466,7 +466,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     } */
     
     @inlinable
-    func testingSpeed(to targetDimensions: [Int]) -> Tensor {
+    public func testingSpeed(to targetDimensions: [Int]) -> Tensor {
         guard targetDimensions != shape else {
             return self
         }
