@@ -111,7 +111,7 @@ public protocol TensorType: Codable, BinaryFloatingPoint {}
 extension Float: TensorType {}
 extension Double: TensorType {}
 
-@usableFromInline
+/*@usableFromInline
 internal func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
     // Calculate the total length of the resulting array
     let tt1 = CFAbsoluteTimeGetCurrent()
@@ -225,7 +225,7 @@ internal func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
         
         return result.map { T($0) }
     }
-}
+}*/
 
 @inlinable
 public func canExpand(_ a: [Int], _ b: [Int]) -> Bool {
