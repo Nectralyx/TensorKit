@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2024 Nectralyx.
+ * This program and the accompanying materials are made available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ */
+
 import XCTest
 @testable import TensorKit
 
@@ -10,7 +16,7 @@ final class TensorKitTests: XCTestCase {
         let tt2 = CFAbsoluteTimeGetCurrent()
         let t5 = TensorKit.Tensor<Float>(.he, shape: [1000, 1000, 100])
         let tt3 = CFAbsoluteTimeGetCurrent()
-        let t6 = t4 * t5
+        //let t6 = TensorKit.add([0, 0], [0, 0])
         let tt4 = CFAbsoluteTimeGetCurrent()
         print("B: \(tt2 - tt1) : \(tt3 - tt2) : \(tt4 - tt3)")
         // Defining Test Cases and Test Methods

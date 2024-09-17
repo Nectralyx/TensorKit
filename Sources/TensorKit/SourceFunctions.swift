@@ -11,6 +11,7 @@
 import Metal
 import Foundation
 import Accelerate
+import cxxLibrary
 
 infix operator **: MultiplicationPrecedence
 
@@ -105,130 +106,6 @@ func LeakyReLUDerivative<T: TensorType>(_ x: T, alpha: T = 0.01) -> T {
     return x > 0 ?  1.0 : alpha
 }
 
-@inlinable
-public func add<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
-    guard x.count == y.count else {
-        fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
-    }
-    let result = x.count
-    if T.self == Float.self {
-        var outputData = [Float](repeating: 0, count: x.count)
-        
-        x.withUnsafeBufferPointer { lBuffer in
-            y.withUnsafeBufferPointer { rBuffer in
-                outputData.withUnsafeMutableBufferPointer { oBuffer in
-                        vDSP_vadd(
-                            lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
-                            rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
-                            oBuffer.baseAddress!, 1,
-                            vDSP_Length(result)
-                        )
-                }
-            }
-        }
-        
-        return outputData as! [T]
-    } else if T.self == Double.self {
-        var outputData = [Double](repeating: 0, count: result)
-        
-        x.withUnsafeBufferPointer { lBuffer in
-            y.withUnsafeBufferPointer { rBuffer in
-                outputData.withUnsafeMutableBufferPointer { oBuffer in
-                        vDSP_vaddD(
-                            lBuffer.baseAddress! as! UnsafePointer<Double>, 1,
-                            rBuffer.baseAddress! as! UnsafePointer<Double>, 1,
-                            oBuffer.baseAddress!, 1,
-                            vDSP_Length(result)
-                        )
-                }
-            }
-        }
-        
-        return outputData as! [T]
-    } else /*if T.self == Float16.self*/ {
-        var outputData = [Float](repeating: 0, count: result)
-        
-        let lDataFloat = x.compactMap { Float($0) }
-        let rDataFloat = y.compactMap { Float($0) }
-        
-        lDataFloat.withUnsafeBufferPointer { lBuffer in
-            rDataFloat.withUnsafeBufferPointer { rBuffer in
-                outputData.withUnsafeMutableBufferPointer { oBuffer in
-                        vDSP_vadd(
-                            lBuffer.baseAddress!, 1,
-                            rBuffer.baseAddress!, 1,
-                            oBuffer.baseAddress!, 1,
-                            vDSP_Length(result)
-                        )
-                }
-            }
-        }
-        return outputData as! [T]
-    }
-
-}
-
-@inlinable
-public func multiply<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
-    guard x.count == y.count else {
-        fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
-    }
-    let result = x.count
-    if T.self == Float.self {
-        var outputData = [Float](repeating: 0, count: x.count)
-        
-        x.withUnsafeBufferPointer { lBuffer in
-            y.withUnsafeBufferPointer { rBuffer in
-                outputData.withUnsafeMutableBufferPointer { oBuffer in
-                        vDSP_vmul(
-                            lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
-                            rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
-                            oBuffer.baseAddress!, 1,
-                            vDSP_Length(result)
-                        )
-                }
-            }
-        }
-        
-        return outputData as! [T]
-    } else if T.self == Double.self {
-        var outputData = [Double](repeating: 0, count: result)
-        
-        x.withUnsafeBufferPointer { lBuffer in
-            y.withUnsafeBufferPointer { rBuffer in
-                outputData.withUnsafeMutableBufferPointer { oBuffer in
-                        vDSP_vmulD(
-                            lBuffer.baseAddress! as! UnsafePointer<Double>, 1,
-                            rBuffer.baseAddress! as! UnsafePointer<Double>, 1,
-                            oBuffer.baseAddress!, 1,
-                            vDSP_Length(result)
-                        )
-                }
-            }
-        }
-        
-        return outputData as! [T]
-    } else /*if T.self == Float16.self*/ {
-        var outputData = [Float](repeating: 0, count: result)
-        
-        let lDataFloat = x.compactMap { Float($0) }
-        let rDataFloat = y.compactMap { Float($0) }
-        
-        lDataFloat.withUnsafeBufferPointer { lBuffer in
-            rDataFloat.withUnsafeBufferPointer { rBuffer in
-                outputData.withUnsafeMutableBufferPointer { oBuffer in
-                        vDSP_vmul(
-                            lBuffer.baseAddress!, 1,
-                            rBuffer.baseAddress!, 1,
-                            oBuffer.baseAddress!, 1,
-                            vDSP_Length(result)
-                        )
-                }
-            }
-        }
-        return outputData as! [T]
-    }
-}
 
 public protocol TensorType: Codable, BinaryFloatingPoint {}
 extension Float: TensorType {}
@@ -387,3 +264,7 @@ public func appendVector<T: FloatingPoint>(_ source: [T], to destination: inout 
     // Replace the destination array with the result
     destination = result
 }
+
+
+
+//testing(Int32(a), Int32(result))

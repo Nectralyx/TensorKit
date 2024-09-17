@@ -11,6 +11,7 @@
 
 import Foundation
 import Accelerate
+import cxxLibrary
 
 public enum TensorInitialization: Codable {
     case ones
@@ -998,4 +999,155 @@ public func transpose<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
         (input, { v in transpose(v.gradient!, shape: v.shape)})
     ]
     return output
+}
+
+@inlinable
+public func add<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
+    guard x.count == y.count else {
+        fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
+    }
+    let result = x.count
+    if T.self == Float.self {
+        var outputData = [Float](repeating: 0, count: x.count)
+        
+        x.withUnsafeBufferPointer { lBuffer in
+            y.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                        /*vDSP_vadd(
+                            lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                            rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                            oBuffer.baseAddress!, 1,
+                            vDSP_Length(result)
+                        )*/
+                    vvadd(
+                        lBuffer.baseAddress! as! UnsafePointer<Float>,
+                        rBuffer.baseAddress! as! UnsafePointer<Float>,
+                        oBuffer.baseAddress!,
+                        Int32(result)
+                    )
+                }
+            }
+        }
+        
+        return outputData as! [T]
+    } else if T.self == Double.self {
+        var outputData = [Double](repeating: 0, count: result)
+        
+        x.withUnsafeBufferPointer { lBuffer in
+            y.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                        /*vDSP_vaddD(
+                            lBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                            rBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                            oBuffer.baseAddress!, 1,
+                            vDSP_Length(result)
+                        )*/
+                    vvadd(
+                        lBuffer.baseAddress! as! UnsafePointer<Double>,
+                        rBuffer.baseAddress! as! UnsafePointer<Double>,
+                        oBuffer.baseAddress!,
+                        Int32(result)
+                    )
+                }
+            }
+        }
+        
+        return outputData as! [T]
+    } else /*if T.self == Float16.self*/ {
+        var outputData = [Float](repeating: 0, count: result)
+        
+        let lDataFloat = x.compactMap { Float($0) }
+        let rDataFloat = y.compactMap { Float($0) }
+        
+        lDataFloat.withUnsafeBufferPointer { lBuffer in
+            rDataFloat.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                    vvadd(
+                        lBuffer.baseAddress! ,
+                        rBuffer.baseAddress! ,
+                        oBuffer.baseAddress!,
+                        Int32(result)
+                    )
+                }
+            }
+        }
+        return outputData as! [T]
+    }
+}
+
+@inlinable
+public func multiply<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
+    guard x.count == y.count else {
+        fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
+    }
+    let result = x.count
+    if T.self == Float.self {
+        var outputData = [Float](repeating: 0, count: x.count)
+        
+        x.withUnsafeBufferPointer { lBuffer in
+            y.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                        /*vDSP_vmul(
+                            lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                            rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                            oBuffer.baseAddress!, 1,
+                            vDSP_Length(result)
+                        )*/
+                    vvmultiply(
+                        lBuffer.baseAddress! as! UnsafePointer<Float>,
+                        rBuffer.baseAddress! as! UnsafePointer<Float>,
+                        oBuffer.baseAddress!,
+                        Int32(result))
+                }
+            }
+        }
+        
+        return outputData as! [T]
+    } else if T.self == Double.self {
+        var outputData = [Double](repeating: 0, count: result)
+        
+        x.withUnsafeBufferPointer { lBuffer in
+            y.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                        /*vDSP_vmulD(
+                            lBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                            rBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                            oBuffer.baseAddress!, 1,
+                            vDSP_Length(result)
+                        )*/
+                    vvmultiply(
+                        lBuffer.baseAddress! as! UnsafePointer<Double>,
+                        rBuffer.baseAddress! as! UnsafePointer<Double>,
+                        oBuffer.baseAddress!,
+                        Int32(result))
+                }
+            }
+        }
+        
+        return outputData as! [T]
+    } else /*if T.self == Float16.self*/ {
+        var outputData = [Float](repeating: 0, count: result)
+        
+        let lDataFloat = x.compactMap { Float($0) }
+        let rDataFloat = y.compactMap { Float($0) }
+        
+        lDataFloat.withUnsafeBufferPointer { lBuffer in
+            rDataFloat.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                        /*vDSP_vmul(
+                            lBuffer.baseAddress!, 1,
+                            rBuffer.baseAddress!, 1,
+                            oBuffer.baseAddress!, 1,
+                            vDSP_Length(result)
+                        )*/
+                    vvmultiply(
+                        lBuffer.baseAddress! ,
+                        rBuffer.baseAddress! ,
+                        oBuffer.baseAddress!,
+                        Int32(result))
+                }
+            }
+        }
+        return outputData as! [T]
+    }
 }
