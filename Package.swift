@@ -26,10 +26,10 @@ let package = Package(
             name: "TensorKit",
             dependencies: ["cxxLibrary"],
             swiftSettings: [
-                            // Apply optimization settings for release builds
+                            /*// Apply optimization settings for release builds
                             .unsafeFlags(["-O"], .when(configuration: .release)),
                             // Apply no optimizations for debug builds
-                            .unsafeFlags(["-O"], .when(configuration: .debug)),
+                            .unsafeFlags(["-O"], .when(configuration: .debug)),*/
                             .interoperabilityMode(.Cxx)
                         ]
         ),
