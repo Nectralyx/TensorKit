@@ -22,7 +22,7 @@ void multiplyArrays(const T* a, const T* b, T* result, int size);
 template <typename T>
 void divideArrays(const T* a, const T* b, T* result, int size);
 
-#endif // Basic_Operation_Functions_hpp */
+#endif // Basic_Operation_Functions_hpp
 
 
 #ifndef Basic_Operation_Functions_hpp
@@ -129,3 +129,4 @@ template void svdivide<double>(const double a, const double* b, double* result, 
 
 #endif /* Basic_Operation_Functions_hpp */
 
+*/
