@@ -16,7 +16,7 @@ final class TensorKitTests: XCTestCase {
         let tt2 = CFAbsoluteTimeGetCurrent()
         let t5 = TensorKit.Tensor<Float>(.he, shape: [1000, 1000, 100])
         let tt3 = CFAbsoluteTimeGetCurrent()
-        //let t6 = TensorKit.add([0, 0], [0, 0])
+        let t6 = t4 + t5
         let tt4 = CFAbsoluteTimeGetCurrent()
         print("B: \(tt2 - tt1) : \(tt3 - tt2) : \(tt4 - tt3)")
         // Defining Test Cases and Test Methods

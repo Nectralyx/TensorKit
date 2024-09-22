@@ -11,6 +11,7 @@
 
 import Foundation
 import Accelerate
+import cxxLibrary
 
 public extension Tensor {
     @inlinable
@@ -26,12 +27,18 @@ public extension Tensor {
                 lhs.data.withUnsafeBufferPointer { lBuffer in
                     rhs.data.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                vDSP_vmul(
+                                /*vDSP_vmul(
                                     lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
                                     rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
                                     oBuffer.baseAddress!, 1,
                                     vDSP_Length(result.dataSize)
-                                )
+                                )*/
+                            cxxLibrary.vvmultiply(
+                                lBuffer.baseAddress! as! UnsafePointer<Float>,
+                                rBuffer.baseAddress! as! UnsafePointer<Float>,
+                                oBuffer.baseAddress!,
+                                Int32(result.dataSize)
+                            )
                         }
                     }
                 }
@@ -43,12 +50,18 @@ public extension Tensor {
                 lhs.data.withUnsafeBufferPointer { lBuffer in
                     rhs.data.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                vDSP_vmulD(
+                                /*vDSP_vmulD(
                                     lBuffer.baseAddress! as! UnsafePointer<Double>, 1,
                                     rBuffer.baseAddress! as! UnsafePointer<Double>, 1,
                                     oBuffer.baseAddress!, 1,
                                     vDSP_Length(result.dataSize)
-                                )
+                                )*/
+                            cxxLibrary.vvmultiply(
+                                lBuffer.baseAddress! as! UnsafePointer<Double>,
+                                rBuffer.baseAddress! as! UnsafePointer<Double>,
+                                oBuffer.baseAddress!,
+                                Int32(result.dataSize)
+                            )
                         }
                     }
                 }
@@ -63,12 +76,18 @@ public extension Tensor {
                 lDataFloat.withUnsafeBufferPointer { lBuffer in
                     rDataFloat.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                vDSP_vmul(
+                                /*vDSP_vmul(
                                     lBuffer.baseAddress!, 1,
                                     rBuffer.baseAddress!, 1,
                                     oBuffer.baseAddress!, 1,
                                     vDSP_Length(result.dataSize)
-                                )
+                                )*/
+                            cxxLibrary.vvmultiply(
+                                lBuffer.baseAddress! ,
+                                rBuffer.baseAddress! ,
+                                oBuffer.baseAddress!,
+                                Int32(result.dataSize)
+                            )
                         }
                     }
                 }
