@@ -8,8 +8,3 @@
  * which is available at https://www.eclipse.org/legal/epl-2.0/
  */
 //
-
-
-void testing(int a, int result) {
-    result = a;
-}
