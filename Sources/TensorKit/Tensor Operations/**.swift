@@ -10,7 +10,7 @@
  */
 
 import Foundation
-import Accelerate
+import TKCore
 
 public extension Tensor {
     @inlinable
@@ -45,13 +45,13 @@ public extension Tensor {
                     lhs.data.withUnsafeBufferPointer { lBuffer in
                         rhs.data.withUnsafeBufferPointer { rBuffer in
                             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                vDSP_mmul(
-                                    lBuffer.baseAddress! as! UnsafePointer<Float> + lOffset, 1,
-                                    rBuffer.baseAddress! as! UnsafePointer<Float> + rOffset, 1,
-                                    oBuffer.baseAddress! + oOffset, 1,
-                                    vDSP_Length(aRows),
-                                    vDSP_Length(bCols),
-                                    vDSP_Length(aCols)
+                                matrixmultiply(
+                                    lBuffer.baseAddress! as! UnsafePointer<Float> + lOffset,
+                                    rBuffer.baseAddress! as! UnsafePointer<Float> + rOffset,
+                                    Int32(aRows),
+                                    Int32(aCols),
+                                    Int32(bCols),
+                                    oBuffer.baseAddress! + oOffset
                                 )
                             }
                         }
@@ -67,13 +67,13 @@ public extension Tensor {
                     lhs.data.withUnsafeBufferPointer { lBuffer in
                         rhs.data.withUnsafeBufferPointer { rBuffer in
                             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                vDSP_mmulD(
-                                    lBuffer.baseAddress! as! UnsafePointer<Double> + lOffset, 1,
-                                    rBuffer.baseAddress! as! UnsafePointer<Double> + rOffset, 1,
-                                    oBuffer.baseAddress! + oOffset, 1,
-                                    vDSP_Length(aRows),
-                                    vDSP_Length(bCols),
-                                    vDSP_Length(aCols)
+                                matrixmultiplyD(
+                                    lBuffer.baseAddress! as! UnsafePointer<Double> + lOffset,
+                                    rBuffer.baseAddress! as! UnsafePointer<Double> + rOffset,
+                                    Int32(aRows),
+                                    Int32(aCols),
+                                    Int32(bCols),
+                                    oBuffer.baseAddress! + oOffset
                                 )
                             }
                         }
@@ -91,13 +91,13 @@ public extension Tensor {
                     lDataFloat.withUnsafeBufferPointer { lBuffer in
                         rDataFloat.withUnsafeBufferPointer { rBuffer in
                             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                vDSP_mmul(
-                                    lBuffer.baseAddress! + lOffset, 1,
-                                    rBuffer.baseAddress! + rOffset, 1,
-                                    oBuffer.baseAddress! + oOffset, 1,
-                                    vDSP_Length(aRows),
-                                    vDSP_Length(bCols),
-                                    vDSP_Length(aCols)
+                                matrixmultiply(
+                                    lBuffer.baseAddress! + lOffset,
+                                    rBuffer.baseAddress! + rOffset,
+                                    Int32(aRows),
+                                    Int32(aCols),
+                                    Int32(bCols),
+                                    oBuffer.baseAddress! + oOffset
                                 )
                             }
                         }

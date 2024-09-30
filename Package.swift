@@ -16,15 +16,15 @@ let package = Package(
             type: .static,
             targets: ["TensorKit"]),
         .library(
-            name: "cxxLibrary",
-            targets: ["cxxLibrary"])
+            name: "TKCore",
+            targets: ["TKCore"])
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "TensorKit",
-            dependencies: ["cxxLibrary"],
+            dependencies: ["TKCore"],
             swiftSettings: [
                             /*// Apply optimization settings for release builds
                             .unsafeFlags(["-O"], .when(configuration: .release)),
@@ -34,7 +34,7 @@ let package = Package(
                         ]
         ),
         .target(
-            name: "cxxLibrary"
+            name: "TKCore"
         ),
             
         .testTarget(

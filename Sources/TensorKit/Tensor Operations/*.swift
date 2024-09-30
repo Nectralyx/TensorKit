@@ -10,8 +10,7 @@
  */
 
 import Foundation
-import Accelerate
-import cxxLibrary
+import TKCore
 
 public extension Tensor {
     @inlinable
@@ -65,8 +64,8 @@ public extension Tensor {
                     rDataFloat.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
                             vvmultiply(
-                                lBuffer.baseAddress! ,
-                                rBuffer.baseAddress! ,
+                                lBuffer.baseAddress!,
+                                rBuffer.baseAddress!,
                                 oBuffer.baseAddress!,
                                 Int32(result.dataSize)
                             )

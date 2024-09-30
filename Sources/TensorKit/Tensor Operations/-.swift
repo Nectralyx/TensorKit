@@ -10,7 +10,7 @@
  */
 
 import Foundation
-import Accelerate
+import TKCore
 
 public extension Tensor {
     @inlinable
@@ -26,12 +26,12 @@ public extension Tensor {
                 lhs.data.withUnsafeBufferPointer { lBuffer in
                     rhs.data.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                vDSP_vsub(
-                                    rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
-                                    lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
-                                    oBuffer.baseAddress!, 1,
-                                    vDSP_Length(result.dataSize)
-                                )
+                            vvsubtract(
+                                rBuffer.baseAddress! as? UnsafePointer<Float>,
+                                lBuffer.baseAddress! as? UnsafePointer<Float>,
+                                oBuffer.baseAddress!,
+                                Int32(result.dataSize)
+                            )
                         }
                     }
                 }
@@ -43,12 +43,12 @@ public extension Tensor {
                 lhs.data.withUnsafeBufferPointer { lBuffer in
                     rhs.data.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                vDSP_vsubD(
-                                    rBuffer.baseAddress! as! UnsafePointer<Double>, 1,
-                                    lBuffer.baseAddress! as! UnsafePointer<Double>, 1,
-                                    oBuffer.baseAddress!, 1,
-                                    vDSP_Length(result.dataSize)
-                                )
+                            vvsubtractD(
+                                rBuffer.baseAddress! as? UnsafePointer<Double>,
+                                lBuffer.baseAddress! as? UnsafePointer<Double>,
+                                oBuffer.baseAddress!,
+                                Int32(result.dataSize)
+                            )
                         }
                     }
                 }
@@ -63,12 +63,12 @@ public extension Tensor {
                 lDataFloat.withUnsafeBufferPointer { lBuffer in
                     rDataFloat.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                vDSP_vsub(
-                                    rBuffer.baseAddress!, 1,
-                                    lBuffer.baseAddress!, 1,
-                                    oBuffer.baseAddress!, 1,
-                                    vDSP_Length(result.dataSize)
-                                )
+                            vvsubtract(
+                                rBuffer.baseAddress!,
+                                lBuffer.baseAddress!,
+                                oBuffer.baseAddress!,
+                                Int32(result.dataSize)
+                            )
                         }
                     }
                 }

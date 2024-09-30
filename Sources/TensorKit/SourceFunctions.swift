@@ -11,7 +11,7 @@
 import Metal
 import Foundation
 import Accelerate
-import cxxLibrary
+import TKCore
 
 infix operator **: MultiplicationPrecedence
 

@@ -9,13 +9,9 @@
 #pragma once
 
 //#include <classImpl.h>
-
-void testing(int a, int result) {
-    result = a;
-}
-
 #include <stdio.h>
 #include <cstring>  // For std::memcpy
+#include <iostream>
 #include <algorithm> //For std::min
 
 static void vvadd(const float* a, const float* b, float* result, int size) {
@@ -33,6 +29,17 @@ static void vvsubtract(const float* a, const float* b, float* result, int size) 
 static void vvmultiply(const float* a, const float* b, float* result, int size) {
     for (int i = 0; i < size; i++) {
         result[i] = a[i] * b[i];
+    }
+}
+
+static void matrixmultiply(const float* a, const float* b, const int m, const int n, const int p, float* result) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < p; j++) {
+            for (int k = 0; k < n; k++) {
+                //result[i * m + j] += a[i * m + k] * b[k * n + j];
+                result[i * p + j] += a[i * n + k] * b[k * p + j];
+            }
+        }
     }
 }
 
@@ -57,6 +64,17 @@ static void vvsubtractD(const double* a, const double* b, double* result, int si
 static void vvmultiplyD(const double* a, const double* b, double* result, int size) {
     for (int i = 0; i < size; i++) {
         result[i] = a[i] * b[i];
+    }
+}
+
+static void matrixmultiplyD(const double* a, const double* b, const int m, const int n, const int p, double* result) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < p; j++) {
+            for (int k = 0; k < n; k++) {
+                //result[i * m + j] += a[i * m + k] * b[k * n + j];
+                result[i * p + j] += a[i * n + k] * b[k * p + j];
+            }
+        }
     }
 }
 
