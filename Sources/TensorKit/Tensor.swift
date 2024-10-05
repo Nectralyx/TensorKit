@@ -1,6 +1,6 @@
 //
-//  nTensor.swift
-//  Synapse
+//  Tensor.swift
+//  TensorKit
 //
 //
 /*
@@ -24,7 +24,7 @@ public enum TensorInitialization: Codable {
     case empty
 }
 
-public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
+open class Tensor<T: TensorType>: Codable, CustomStringConvertible {
     public var description: String {
         return formatTensor(data, shape: shape)
     }
@@ -99,7 +99,7 @@ public class Tensor<T: TensorType>: Codable, CustomStringConvertible {
         self.gradient = calculate_grad ? [T](repeating: 0.0, count: shape.reduce(1, *)) : nil
        // self.calculate_grad = calculate_grad
     }
-    public func encode(to encoder: any Encoder) throws {
+    open func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(data, forKey: .data)
         try container.encode(shape, forKey: .shape)
@@ -661,6 +661,85 @@ func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
         return result.map { T($0) }
     }
 }*/
+@inlinable
+public func upperTriangle<T: TensorType>(rows: Int, cols: Int, upper: T, lower: T) -> [T] {
+    var result = [T](repeating: 0, count: rows * cols)
+    if T.self == Float.self {
+        result.withUnsafeMutableBufferPointer { oBuffer in
+            upperTriangle(
+                Int32(rows),
+                Int32(cols),
+                upper as! Float,
+                lower as! Float,
+                oBuffer.baseAddress! as? UnsafeMutablePointer<Float>
+            )
+        }
+        return result
+    } else if T.self == Double.self {
+        result.withUnsafeMutableBufferPointer { oBuffer in
+            upperTriangleD(
+                Int32(rows),
+                Int32(cols),
+                upper as! Double,
+                lower as! Double,
+                oBuffer.baseAddress! as? UnsafeMutablePointer<Double>
+            )
+        }
+        return result
+    } else {
+        return result
+    }
+}
+
+@inlinable
+public func lowerTriangle<T: TensorType>(rows: Int, cols: Int, upper: T, lower: T) -> [T] {
+    var result = [T](repeating: 0, count: rows * cols)
+    if T.self == Float.self {
+        result.withUnsafeMutableBufferPointer { oBuffer in
+            lowerTriangle(
+                Int32(rows),
+                Int32(cols),
+                upper as! Float,
+                lower as! Float,
+                oBuffer.baseAddress! as? UnsafeMutablePointer<Float>
+            )
+        }
+        return result
+    } else if T.self == Double.self {
+        result.withUnsafeMutableBufferPointer { oBuffer in
+            lowerTriangleD(
+                Int32(rows),
+                Int32(cols),
+                upper as! Double,
+                lower as! Double,
+                oBuffer.baseAddress! as? UnsafeMutablePointer<Double>
+            )
+        }
+        return result
+    } else {
+        return result
+    }
+}
+
+@inlinable
+public func upperTriangle<T: TensorType>(shape: [Int], upper: T, lower: T) -> Tensor<T> {
+    let count = shape.reduce(1, *) / shape.last! / shape.dropLast().last!
+    var result = [T]()
+    for _ in 0..<count {
+        result.append(contentsOf: upperTriangle(rows: shape.dropLast().last!, cols: shape.last!, upper: upper, lower: lower))
+    }
+    return Tensor(result, shape: shape)
+}
+
+@inlinable
+public func lowerTriangle<T: TensorType>(shape: [Int], upper: T, lower: T) -> Tensor<T> {
+    let count = shape.reduce(1, *) / shape.last! / shape.dropLast().last!
+    var result = [T]()
+    for _ in 0..<count {
+        result.append(contentsOf: lowerTriangle(rows: shape.dropLast().last!, cols: shape.last!, upper: upper, lower: lower))
+    }
+    return Tensor(result, shape: shape)
+}
 
 @inlinable
 public func repeatArray<T: TensorType>(_ input: [T], count: Int) -> [T] {
@@ -844,43 +923,46 @@ public func multiply<T: TensorType>(_ input: [T], s: T) -> [T] {
     let totalElements = input.count
     
     if T.self == Float.self {
-        var outputData = [Float](repeating: 0, count: totalElements)
+        var outputData = [T](repeating: 0, count: totalElements)
         input.withUnsafeBufferPointer { rBuffer in
             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                vsmultiply(
-                    rBuffer.baseAddress! as? UnsafePointer<Float>,
-                    s as! Float,
-                    oBuffer.baseAddress!,
-                    Int32(totalElements)
+                vDSP_vsmul(rBuffer.baseAddress! as! UnsafePointer<Float>,
+                    1,
+                    [s] as! [Float],
+                    oBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                    1,
+                    vDSP_Length(totalElements)
                 )
             }
         }
         
-        result = outputData as! [T]
+        result = outputData
     } else if T.self == Double.self {
-        var outputData = [Double](repeating: 0, count: totalElements)
+        var outputData = [T](repeating: 0, count: totalElements)
         input.withUnsafeBufferPointer { rBuffer in
             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                vsmultiplyD(
-                    rBuffer.baseAddress! as? UnsafePointer<Double>,
-                    s as! Double,
-                    oBuffer.baseAddress!,
-                    Int32(totalElements)
+                vDSP_vsmulD(rBuffer.baseAddress! as! UnsafePointer<Double>,
+                    1,
+                    [s] as! [Double],
+                    oBuffer.baseAddress! as! UnsafeMutablePointer<Double>,
+                    1,
+                    vDSP_Length(totalElements)
                 )
             }
         }
         
-        result = outputData as! [T]
+        result = outputData
     } else {
         var outputData = [Float](repeating: 0, count: totalElements)
         let lDataFloat = input.compactMap { Float($0) }
         lDataFloat.withUnsafeBufferPointer { rBuffer in
             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                vsmultiply(
-                    rBuffer.baseAddress!,
-                    s as! Float,
-                    oBuffer.baseAddress!,
-                    Int32(totalElements)
+                vDSP_vsmul(rBuffer.baseAddress! as! UnsafePointer<Float>,
+                    1,
+                    [s] as! [Float],
+                    oBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                    1,
+                    vDSP_Length(totalElements)
                 )
             }
         }
@@ -895,43 +977,49 @@ public func divide<T: TensorType>(_ input: [T], s: T) -> [T] {
     let totalElements = input.count
     
     if T.self == Float.self {
-        var outputData = [Float](repeating: 0, count: totalElements)
+        var outputData = [T](repeating: 0, count: totalElements)
         input.withUnsafeBufferPointer { rBuffer in
             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                svdivide(
-                    s as! Float,
-                    rBuffer.baseAddress! as? UnsafePointer<Float>,
-                    oBuffer.baseAddress!,
-                    Int32(totalElements)
+                vDSP_vsdiv(
+                    rBuffer.baseAddress! as! UnsafePointer<Float>,
+                    1,
+                    [s] as! [Float],
+                    oBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                    1,
+                    vDSP_Length(totalElements)
                 )
             }
         }
         
-        result = outputData as! [T]
+        result = outputData
     } else if T.self == Double.self {
-        var outputData = [Double](repeating: 0, count: totalElements)
+        var outputData = [T](repeating: 0, count: totalElements)
         input.withUnsafeBufferPointer { rBuffer in
             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                svdivideD(
-                    s as! Double,
-                    rBuffer.baseAddress! as? UnsafePointer<Double>,
-                    oBuffer.baseAddress!,
-                    Int32(totalElements)
+                vDSP_vsdivD(
+                    rBuffer.baseAddress! as! UnsafePointer<Double>,
+                    1,
+                    [s] as! [Double],
+                    oBuffer.baseAddress! as! UnsafeMutablePointer<Double>,
+                    1,
+                    vDSP_Length(totalElements)
                 )
             }
         }
         
-        result = outputData as! [T]
+        result = outputData
     } else {
         var outputData = [Float](repeating: 0, count: totalElements)
         let lDataFloat = input.compactMap { Float($0) }
         lDataFloat.withUnsafeBufferPointer { rBuffer in
             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                svdivide(
-                    s as! Float,
-                    rBuffer.baseAddress!,
-                    oBuffer.baseAddress!,
-                    Int32(totalElements)
+                vDSP_vsdiv(
+                    rBuffer.baseAddress! as! UnsafePointer<Float>,
+                    1,
+                    [s] as! [Float],
+                    oBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                    1,
+                    vDSP_Length(totalElements)
                 )
             }
         }
@@ -945,43 +1033,49 @@ public func inverseDivide<T: TensorType>(_ input: [T], s: T) -> [T] {
     let totalElements = input.count
     
     if T.self == Float.self {
-        var outputData = [Float](repeating: 0, count: totalElements)
+        var outputData = [T](repeating: 0, count: totalElements)
         input.withUnsafeBufferPointer { rBuffer in
             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                vsdivide(
-                    rBuffer.baseAddress! as? UnsafePointer<Float>,
-                    s as! Float,
-                    oBuffer.baseAddress!,
-                    Int32(totalElements)
+                vDSP_svdiv(
+                    [s] as! [Float],
+                    rBuffer.baseAddress! as! UnsafePointer<Float>,
+                    1,
+                    oBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                    1,
+                    vDSP_Length(totalElements)
                 )
             }
         }
         
-        result = outputData as! [T]
+        result = outputData
     } else if T.self == Double.self {
-        var outputData = [Double](repeating: 0, count: totalElements)
+        var outputData = [T](repeating: 0, count: totalElements)
         input.withUnsafeBufferPointer { rBuffer in
             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                vsdivideD(
-                    rBuffer.baseAddress! as? UnsafePointer<Double>,
-                    s as! Double,
-                    oBuffer.baseAddress!,
-                    Int32(totalElements)
+                vDSP_svdivD(
+                    [s] as! [Double],
+                    rBuffer.baseAddress! as! UnsafePointer<Double>,
+                    1,
+                    oBuffer.baseAddress! as! UnsafeMutablePointer<Double>,
+                    1,
+                    vDSP_Length(totalElements)
                 )
             }
         }
         
-        result = outputData as! [T]
+        result = outputData
     } else {
         var outputData = [Float](repeating: 0, count: totalElements)
         let lDataFloat = input.compactMap { Float($0) }
         lDataFloat.withUnsafeBufferPointer { rBuffer in
             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                vsdivide(
-                    rBuffer.baseAddress!,
-                    s as! Float,
-                    oBuffer.baseAddress!,
-                    Int32(totalElements)
+                vDSP_svdiv(
+                    [s] as! [Float],
+                    rBuffer.baseAddress! as! UnsafePointer<Float>,
+                    1,
+                    oBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                    1,
+                    vDSP_Length(totalElements)
                 )
             }
         }
@@ -1005,7 +1099,7 @@ public func matrixMultiply<T: TensorType>(_ a: [T], _ b: [T], aShape: [Int], bSh
     var result = [T]()
 
         if T.self == Float.self {
-            var outputData = [Float](repeating: 0, count: outputSize)
+            var outputData = [T](repeating: 0, count: outputSize)
             for batch in 0..<batchCount {
                 let lOffset = batch * aRows * aCols
                 let rOffset = batch * aCols * bCols
@@ -1013,21 +1107,21 @@ public func matrixMultiply<T: TensorType>(_ a: [T], _ b: [T], aShape: [Int], bSh
                 a.withUnsafeBufferPointer { lBuffer in
                     b.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
-                            matrixmultiply(
-                                lBuffer.baseAddress! as! UnsafePointer<Float> + lOffset,
-                                rBuffer.baseAddress! as! UnsafePointer<Float> + rOffset,
-                                Int32(aRows),
-                                Int32(aCols),
-                                Int32(bCols),
-                                oBuffer.baseAddress! + oOffset
+                            vDSP_mmul(
+                                lBuffer.baseAddress! as! UnsafePointer<Float> + lOffset, 1,
+                                rBuffer.baseAddress! as! UnsafePointer<Float> + rOffset, 1,
+                                oBuffer.baseAddress! as! UnsafeMutablePointer<Float> + oOffset, 1,
+                                vDSP_Length(aRows),
+                                vDSP_Length(bCols),
+                                vDSP_Length(aCols)
                             )
                         }
                     }
                 }
             }
-            result = outputData as! [T]
+            result = outputData
         } else if T.self == Double.self {
-            var outputData = [Double](repeating: 0, count: outputSize)
+            var outputData = [T](repeating: 0, count: outputSize)
             for batch in 0..<batchCount {
                 let lOffset = batch * aRows * aCols
                 let rOffset = batch * aCols * bCols
@@ -1035,19 +1129,19 @@ public func matrixMultiply<T: TensorType>(_ a: [T], _ b: [T], aShape: [Int], bSh
                 a.withUnsafeBufferPointer { lBuffer in
                     b.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
-                            matrixmultiplyD(
-                                lBuffer.baseAddress! as! UnsafePointer<Double> + lOffset,
-                                rBuffer.baseAddress! as! UnsafePointer<Double> + rOffset,
-                                Int32(aRows),
-                                Int32(aCols),
-                                Int32(bCols),
-                                oBuffer.baseAddress! + oOffset
+                            vDSP_mmulD(
+                                lBuffer.baseAddress! as! UnsafePointer<Double> + lOffset, 1,
+                                rBuffer.baseAddress! as! UnsafePointer<Double> + rOffset, 1,
+                                oBuffer.baseAddress! as! UnsafeMutablePointer<Double> + oOffset, 1,
+                                vDSP_Length(aRows),
+                                vDSP_Length(bCols),
+                                vDSP_Length(aCols)
                             )
                         }
                     }
                 }
             }
-            result = outputData as! [T]
+            result = outputData
         } else {
             var outputData = [Float](repeating: 0, count: outputSize)
             
@@ -1086,28 +1180,28 @@ public func transpose<T: TensorType>(_ input: [T], shape: [Int]) -> [T] {
     let batchCount = shape.dropLast(2).reduce(1, *)
     
     if T.self == Float.self {
-        var outputData = [Float](repeating: 0, count: totalElements)
+        var outputData = [T](repeating: 0, count: totalElements)
         for batch in 0..<batchCount {
             let offset = batch * rows * cols
             input.withUnsafeBufferPointer { sdata in
                 outputData.withUnsafeMutableBufferPointer { odata in
-                    vDSP_mtrans(sdata.baseAddress! as! UnsafePointer<Float> + offset, 1, odata.baseAddress! + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
+                    vDSP_mtrans(sdata.baseAddress! as! UnsafePointer<Float> + offset, 1, odata.baseAddress! as! UnsafeMutablePointer<Float> + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
                 }
             }
         }
-        result = outputData as! [T]
+        result = outputData
     } else if T.self == Double.self {
-        var outputData = [Double](repeating: 0, count: totalElements)
+        var outputData = [T](repeating: 0, count: totalElements)
         for batch in 0..<batchCount {
             let offset = batch * rows * cols
             input.withUnsafeBufferPointer { sdata in
                 outputData.withUnsafeMutableBufferPointer { odata in
-                    vDSP_mtransD(sdata.baseAddress! as! UnsafePointer<Double> + offset, 1, odata.baseAddress! + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
+                    vDSP_mtransD(sdata.baseAddress! as! UnsafePointer<Double> + offset, 1, odata.baseAddress! as! UnsafeMutablePointer<Double> + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
                 }
             }
         }
-        result = outputData as! [T]
-    } else /*if T.self == Float16.self*/ {
+        result = outputData
+    } else {
         let compData = input.compactMap{ Float($0) }
         var outputData = [Float](repeating: 0, count: totalElements)
         for batch in 0..<batchCount {
@@ -1133,28 +1227,28 @@ public func transpose<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
     let batchCount = input.shape.dropLast(2).reduce(1, *)
     
     if T.self == Float.self {
-        var outputData = [Float](repeating: 0, count: totalElements)
+        var outputData = [T](repeating: 0, count: totalElements)
         for batch in 0..<batchCount {
             let offset = batch * rows * cols
             input.data.withUnsafeBufferPointer { sdata in
                 outputData.withUnsafeMutableBufferPointer { odata in
-                    vDSP_mtrans(sdata.baseAddress! as! UnsafePointer<Float> + offset, 1, odata.baseAddress! + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
+                    vDSP_mtrans(sdata.baseAddress! as! UnsafePointer<Float> + offset, 1, odata.baseAddress! as! UnsafeMutablePointer<Float> + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
                 }
             }
         }
-        result = outputData as! [T]
+        result = outputData
     } else if T.self == Double.self {
-        var outputData = [Double](repeating: 0, count: totalElements)
+        var outputData = [T](repeating: 0, count: totalElements)
         for batch in 0..<batchCount {
             let offset = batch * rows * cols
             input.data.withUnsafeBufferPointer { sdata in
                 outputData.withUnsafeMutableBufferPointer { odata in
-                    vDSP_mtransD(sdata.baseAddress! as! UnsafePointer<Double> + offset, 1, odata.baseAddress! + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
+                    vDSP_mtransD(sdata.baseAddress! as! UnsafePointer<Double> + offset, 1, odata.baseAddress! as! UnsafeMutablePointer<Double> + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
                 }
             }
         }
-        result = outputData as! [T]
-    } else /*if T.self == Float16.self*/ {
+        result = outputData
+    } else {
         let compData = input.data.compactMap{ Float($0) }
         var outputData = [Float](repeating: 0, count: totalElements)
         for batch in 0..<batchCount {
@@ -1184,39 +1278,39 @@ public func add<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
     }
     let result = x.count
     if T.self == Float.self {
-        var outputData = [Float](repeating: 0, count: x.count)
+        var outputData = [T](repeating: 0, count: x.count)
         
         x.withUnsafeBufferPointer { lBuffer in
             y.withUnsafeBufferPointer { rBuffer in
                 outputData.withUnsafeMutableBufferPointer { oBuffer in
-                    vvadd(
-                        lBuffer.baseAddress! as? UnsafePointer<Float>,
-                        rBuffer.baseAddress! as? UnsafePointer<Float>,
-                        oBuffer.baseAddress!,
-                        Int32(result)
+                    vDSP_vadd(
+                        lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        oBuffer.baseAddress! as! UnsafeMutablePointer<Float>, 1,
+                        vDSP_Length(result)
                     )
                 }
             }
         }
         
-        return outputData as! [T]
+        return outputData
     } else if T.self == Double.self {
-        var outputData = [Double](repeating: 0, count: result)
-        
+        var outputData = [T](repeating: 0, count: result)
+
         x.withUnsafeBufferPointer { lBuffer in
             y.withUnsafeBufferPointer { rBuffer in
                 outputData.withUnsafeMutableBufferPointer { oBuffer in
-                    vvaddD(
-                        lBuffer.baseAddress! as? UnsafePointer<Double>,
-                        rBuffer.baseAddress! as? UnsafePointer<Double>,
-                        oBuffer.baseAddress!,
-                        Int32(result)
+                    vDSP_vaddD(
+                        lBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                        rBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                        oBuffer.baseAddress! as! UnsafeMutablePointer<Double>, 1,
+                        vDSP_Length(result)
                     )
                 }
             }
         }
         
-        return outputData as! [T]
+        return outputData
     } else {
         var outputData = [Float](repeating: 0, count: result)
         
@@ -1226,11 +1320,11 @@ public func add<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
         lDataFloat.withUnsafeBufferPointer { lBuffer in
             rDataFloat.withUnsafeBufferPointer { rBuffer in
                 outputData.withUnsafeMutableBufferPointer { oBuffer in
-                    vvadd(
-                        lBuffer.baseAddress!,
-                        rBuffer.baseAddress!,
-                        oBuffer.baseAddress!,
-                        Int32(result)
+                    vDSP_vadd(
+                        lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        oBuffer.baseAddress!, 1,
+                        vDSP_Length(result)
                     )
                 }
             }
@@ -1246,38 +1340,40 @@ public func multiply<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
     }
     let result = x.count
     if T.self == Float.self {
-        var outputData = [Float](repeating: 0, count: x.count)
+        var outputData = [T](repeating: 0, count: x.count)
         
         x.withUnsafeBufferPointer { lBuffer in
             y.withUnsafeBufferPointer { rBuffer in
                 outputData.withUnsafeMutableBufferPointer { oBuffer in
-                    vvmultiply(
-                        lBuffer.baseAddress! as? UnsafePointer<Float>,
-                        rBuffer.baseAddress! as? UnsafePointer<Float>,
-                        oBuffer.baseAddress!,
-                        Int32(result))
+                    vDSP_vmul(
+                        lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        oBuffer.baseAddress! as! UnsafeMutablePointer<Float>, 1,
+                        vDSP_Length(result)
+                    )
                 }
             }
         }
         
-        return outputData as! [T]
+        return outputData
     } else if T.self == Double.self {
-        var outputData = [Double](repeating: 0, count: result)
+        var outputData = [T](repeating: 0, count: result)
         
         x.withUnsafeBufferPointer { lBuffer in
             y.withUnsafeBufferPointer { rBuffer in
                 outputData.withUnsafeMutableBufferPointer { oBuffer in
-                    vvmultiplyD(
-                        lBuffer.baseAddress! as? UnsafePointer<Double>,
-                        rBuffer.baseAddress! as? UnsafePointer<Double>,
-                        oBuffer.baseAddress!,
-                        Int32(result))
+                    vDSP_vmulD(
+                        lBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                        rBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                        oBuffer.baseAddress! as! UnsafeMutablePointer<Double>, 1,
+                        vDSP_Length(result)
+                    )
                 }
             }
         }
         
-        return outputData as! [T]
-    } else /*if T.self == Float16.self*/ {
+        return outputData
+    } else {
         var outputData = [Float](repeating: 0, count: result)
         
         let lDataFloat = x.compactMap { Float($0) }
@@ -1286,11 +1382,12 @@ public func multiply<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
         lDataFloat.withUnsafeBufferPointer { lBuffer in
             rDataFloat.withUnsafeBufferPointer { rBuffer in
                 outputData.withUnsafeMutableBufferPointer { oBuffer in
-                    vvmultiply(
-                        lBuffer.baseAddress!,
-                        rBuffer.baseAddress!,
-                        oBuffer.baseAddress!,
-                        Int32(result))
+                    vDSP_vmul(
+                        lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        oBuffer.baseAddress! as! UnsafeMutablePointer<Float>, 1,
+                        vDSP_Length(result)
+                    )
                 }
             }
         }

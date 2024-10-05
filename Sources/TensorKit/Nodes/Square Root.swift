@@ -1,6 +1,6 @@
 //
 //  Square Root.swift
-//  Synapse
+//  TensorKit
 //
 //
 /*
@@ -36,7 +36,7 @@ public func sqrt<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
             }
         }
         result.data = output as! [T]
-    } else /*if T.self == Float16.self*/ {
+    } else {
         var output = [Float](unsafeUninitializedCapacity: input.dataSize, initializingWith: {  buffer, initializedCount in
             initializedCount = buffer.count
         })

@@ -1,6 +1,6 @@
 //
 //  Sigmoid.swift
-//  Synapse
+//  TensorKit
 //
 //
 /*

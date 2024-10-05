@@ -13,12 +13,54 @@
 #include <cstring>  // For std::memcpy
 #include <iostream>
 #include <algorithm> //For std::min
-
+/*
 static void vvadd(const float* a, const float* b, float* result, int size) {
+    for (int i = 0; i < size; i += 2) {
+        result[i] = a[i] + b[i];
+        result[i + 1] = a[i + 1] + b[i + 1];
+    }
+}*/
+/*
+static void vvadd(const float* a, const float* b, float* result, int size) {
+    #pragma omp parallel for
     for (int i = 0; i < size; i++) {
         result[i] = a[i] + b[i];
     }
+}*/
+// Example using GCC intrinsics for non-temporal stores (for unaligned data)
+#include <arm_neon.h>
+
+/*
+static void vvadd(const float* a, const float* b, float* result, int size) {
+    int i = 0;
+    for (; i < size - 4; i += 4) {
+        result[i] = a[i] + b[i];
+        result[i + 1] = a[i + 1] + b[i + 1];
+        result[i + 2] = a[i + 2] + b[i + 2];
+        result[i + 3] = a[i + 3] + b[i + 3];
+    }
+    for (; i < size; i++) {
+        result[i] = a[i] + b[i];
+    }
 }
+*/
+#include <arm_neon.h>
+
+static void vvadd(const float* a, const float* b, float* result, int size) {
+    int simdSize = size / 4 * 4;  // Process in chunks of 4 floats
+#pragma omp parallel for
+    for (int i = 0; i < simdSize; i += 4) {
+        float32x4_t av = vld1q_f32(&a[i]);  // Load 4 floats from a
+        float32x4_t bv = vld1q_f32(&b[i]);  // Load 4 floats from b
+        float32x4_t rv = vaddq_f32(av, bv); // Add the 4 floats
+        vst1q_f32(&result[i], rv);          // Store the result
+    }
+    // Handle the remaining elements
+    for (int i = simdSize; i < size; i++) {
+        result[i] = a[i] + b[i];
+    }
+}
+ 
 
 static void vvsubtract(const float* a, const float* b, float* result, int size) {
     for (int i = 0; i < size; i++) {

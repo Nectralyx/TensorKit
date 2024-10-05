@@ -12,14 +12,14 @@ final class TensorKitTests: XCTestCase {
         // XCTest Documentation
         // https://developer.apple.com/documentation/xctest
         let tt1 = CFAbsoluteTimeGetCurrent()
-        let t4 = TensorKit.Tensor<Float>([[1, 2, 3], [4, 5, 6]])
+        let t4 = TensorKit.Tensor<Float>(.zeros, shape: [1000, 1000, 1000])
         let tt2 = CFAbsoluteTimeGetCurrent()
-        let t5 = TensorKit.Tensor<Float>([[5, 5, 5], [5, 5, 5], [5, 5, 5]])
+        let t5 = TensorKit.Tensor<Float>(.ones, shape: [1000, 1000, 1000])
         let tt3 = CFAbsoluteTimeGetCurrent()
-        let t6 = t4 ** t5
+        let t6 = t4 + t5
         let tt4 = CFAbsoluteTimeGetCurrent()
         print("B: \(tt2 - tt1) : \(tt3 - tt2) : \(tt4 - tt3)")
         //print(t5)
-        print(t6)
+        //print(t6)
     }
 }

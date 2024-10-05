@@ -1,6 +1,6 @@
 //
 //  **.swift
-//  Synapse
+//  TensorKit
 //
 //
 /*
@@ -10,7 +10,7 @@
  */
 
 import Foundation
-import TKCore
+import Accelerate
 
 public extension Tensor {
     @inlinable
@@ -37,7 +37,7 @@ public extension Tensor {
         let batchCount = lhs.shape.dropLast(2).reduce(1, *)
         
             if T.self == Float.self {
-                var outputData = [Float](repeating: 0, count: result.dataSize)
+                var outputData = [T](repeating: 0, count: result.dataSize)
                 for batch in 0..<batchCount {
                     let lOffset = batch * aRows * aCols
                     let rOffset = batch * aCols * bCols
@@ -45,21 +45,21 @@ public extension Tensor {
                     lhs.data.withUnsafeBufferPointer { lBuffer in
                         rhs.data.withUnsafeBufferPointer { rBuffer in
                             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                matrixmultiply(
-                                    lBuffer.baseAddress! as! UnsafePointer<Float> + lOffset,
-                                    rBuffer.baseAddress! as! UnsafePointer<Float> + rOffset,
-                                    Int32(aRows),
-                                    Int32(aCols),
-                                    Int32(bCols),
-                                    oBuffer.baseAddress! + oOffset
+                                vDSP_mmul(
+                                    lBuffer.baseAddress! as! UnsafePointer<Float> + lOffset, 1,
+                                    rBuffer.baseAddress! as! UnsafePointer<Float> + rOffset, 1,
+                                    oBuffer.baseAddress! as! UnsafeMutablePointer<Float> + oOffset, 1,
+                                    vDSP_Length(aRows),
+                                    vDSP_Length(bCols),
+                                    vDSP_Length(aCols)
                                 )
                             }
                         }
                     }
                 }
-                result.data = outputData as! [T]
+                result.data = outputData
             } else if T.self == Double.self {
-                var outputData = [Double](repeating: 0, count: result.dataSize)
+                var outputData = [T](repeating: 0, count: result.dataSize)
                 for batch in 0..<batchCount {
                     let lOffset = batch * aRows * aCols
                     let rOffset = batch * aCols * bCols
@@ -67,20 +67,20 @@ public extension Tensor {
                     lhs.data.withUnsafeBufferPointer { lBuffer in
                         rhs.data.withUnsafeBufferPointer { rBuffer in
                             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                matrixmultiplyD(
-                                    lBuffer.baseAddress! as! UnsafePointer<Double> + lOffset,
-                                    rBuffer.baseAddress! as! UnsafePointer<Double> + rOffset,
-                                    Int32(aRows),
-                                    Int32(aCols),
-                                    Int32(bCols),
-                                    oBuffer.baseAddress! + oOffset
+                                vDSP_mmulD(
+                                    lBuffer.baseAddress! as! UnsafePointer<Double> + lOffset, 1,
+                                    rBuffer.baseAddress! as! UnsafePointer<Double> + rOffset, 1,
+                                    oBuffer.baseAddress! as! UnsafeMutablePointer<Double> + oOffset, 1,
+                                    vDSP_Length(aRows),
+                                    vDSP_Length(bCols),
+                                    vDSP_Length(aCols)
                                 )
                             }
                         }
                     }
                 }
-                result.data = outputData as! [T]
-            } else /*if T.self == Float16.self*/ {
+                result.data = outputData
+            } else {
                 var outputData = [Float](repeating: 0, count: result.dataSize)
                 let lDataFloat = lhs.data.compactMap { Float($0) }
                 let rDataFloat = rhs.data.compactMap { Float($0) }
@@ -91,13 +91,13 @@ public extension Tensor {
                     lDataFloat.withUnsafeBufferPointer { lBuffer in
                         rDataFloat.withUnsafeBufferPointer { rBuffer in
                             outputData.withUnsafeMutableBufferPointer { oBuffer in
-                                matrixmultiply(
-                                    lBuffer.baseAddress! + lOffset,
-                                    rBuffer.baseAddress! + rOffset,
-                                    Int32(aRows),
-                                    Int32(aCols),
-                                    Int32(bCols),
-                                    oBuffer.baseAddress! + oOffset
+                                vDSP_mmul(
+                                    lBuffer.baseAddress! as! UnsafePointer<Float> + lOffset, 1,
+                                    rBuffer.baseAddress! as! UnsafePointer<Float> + rOffset, 1,
+                                    oBuffer.baseAddress! as! UnsafeMutablePointer<Float> + oOffset, 1,
+                                    vDSP_Length(aRows),
+                                    vDSP_Length(bCols),
+                                    vDSP_Length(aCols)
                                 )
                             }
                         }

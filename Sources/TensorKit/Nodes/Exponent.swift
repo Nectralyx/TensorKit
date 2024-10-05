@@ -1,6 +1,6 @@
 //
 //  Exponent.swift
-//  Synapse
+//  TensorKit
 //
 //
 /*

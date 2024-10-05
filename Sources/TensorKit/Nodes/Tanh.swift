@@ -1,6 +1,6 @@
 //
 //  Tanh.swift
-//  Synapse
+//  TensorKit
 //
 //
 /*

@@ -1,6 +1,6 @@
 //
 //  Nodes.swift
-//  Synapse
+//  TensorKit
 //
 //
 /*

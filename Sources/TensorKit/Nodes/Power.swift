@@ -1,6 +1,6 @@
 //
 //  Power.swift
-//  Synapse
+//  TensorKit
 //
 //
 /*

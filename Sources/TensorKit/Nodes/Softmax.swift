@@ -1,6 +1,6 @@
 //
 //  Softmax.swift
-//  Synapse
+//  TensorKit
 //
 //
 /*

@@ -1,6 +1,6 @@
 //
 //  *.swift
-//  Synapse
+//  TensorKit
 //
 //
 /*
@@ -10,7 +10,7 @@
  */
 
 import Foundation
-import TKCore
+import Accelerate
 
 public extension Tensor {
     @inlinable
@@ -21,39 +21,39 @@ public extension Tensor {
         let result = Tensor(.empty, shape: finalShape, calculate_grad: (lhs.gradient != nil || rhs.gradient != nil) ? true : false)
         
             if T.self == Float.self {
-                var outputData = [Float](repeating: 0, count: result.dataSize)
+                var outputData = [T](repeating: 0, count: result.dataSize)
                 
                 lhs.data.withUnsafeBufferPointer { lBuffer in
                     rhs.data.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
-                            vvmultiply(
-                                lBuffer.baseAddress! as? UnsafePointer<Float>,
-                                rBuffer.baseAddress! as? UnsafePointer<Float>,
-                                oBuffer.baseAddress!,
-                                Int32(result.dataSize)
+                            vDSP_vmul(
+                                lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                                rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                                oBuffer.baseAddress! as! UnsafeMutablePointer<Float>, 1,
+                                vDSP_Length(result.dataSize)
                             )
                         }
                     }
                 }
                 
-                result.data = outputData as! [T]
+                result.data = outputData
             } else if T.self == Double.self {
-                var outputData = [Double](repeating: 0, count: result.dataSize)
+                var outputData = [T](repeating: 0, count: result.dataSize)
                 
                 lhs.data.withUnsafeBufferPointer { lBuffer in
                     rhs.data.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
-                            vvmultiplyD(
-                                lBuffer.baseAddress! as? UnsafePointer<Double>,
-                                rBuffer.baseAddress! as? UnsafePointer<Double>,
-                                oBuffer.baseAddress!,
-                                Int32(result.dataSize)
+                            vDSP_vmulD(
+                                lBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                                rBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                                oBuffer.baseAddress! as! UnsafeMutablePointer<Double>, 1,
+                                vDSP_Length(result.dataSize)
                             )
                         }
                     }
                 }
                 
-                result.data = outputData as! [T]
+                result.data = outputData
             } else {
                 var outputData = [Float](repeating: 0, count: result.dataSize)
                 
@@ -63,11 +63,11 @@ public extension Tensor {
                 lDataFloat.withUnsafeBufferPointer { lBuffer in
                     rDataFloat.withUnsafeBufferPointer { rBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
-                            vvmultiply(
-                                lBuffer.baseAddress!,
-                                rBuffer.baseAddress!,
-                                oBuffer.baseAddress!,
-                                Int32(result.dataSize)
+                            vDSP_vmul(
+                                lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                                rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                                oBuffer.baseAddress! as! UnsafeMutablePointer<Float>, 1,
+                                vDSP_Length(result.dataSize)
                             )
                         }
                     }

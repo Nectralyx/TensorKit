@@ -1,6 +1,6 @@
 //
 //  transpose.swift
-//  Synapse
+//  TensorKit
 //
 //
 /*
@@ -21,28 +21,28 @@ public extension Tensor {
         let batchCount = shape.dropLast(2).reduce(1, *)
         result.shape.swapAt(result.shape.endIndex - 2, result.shape.endIndex - 1)
         if T.self == Float.self {
-            var outputData = [Float](repeating: 0, count: totalElements)
+            var outputData = [T](repeating: 0, count: totalElements)
             for batch in 0..<batchCount {
                 let offset = batch * rows * cols
                 data.withUnsafeBufferPointer { sdata in
                     outputData.withUnsafeMutableBufferPointer { odata in
-                        vDSP_mtrans(sdata.baseAddress! as! UnsafePointer<Float> + offset, 1, odata.baseAddress! + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
+                        vDSP_mtrans(sdata.baseAddress! as! UnsafePointer<Float> + offset, 1, odata.baseAddress! as! UnsafeMutablePointer<Float> + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
                     }
                 }
             }
-            result.data = outputData as! [T]
+            result.data = outputData
         } else if T.self == Double.self {
-            var outputData = [Double](repeating: 0, count: totalElements)
+            var outputData = [T](repeating: 0, count: totalElements)
             for batch in 0..<batchCount {
                 let offset = batch * rows * cols
                 data.withUnsafeBufferPointer { sdata in
                     outputData.withUnsafeMutableBufferPointer { odata in
-                        vDSP_mtransD(sdata.baseAddress! as! UnsafePointer<Double> + offset, 1, odata.baseAddress! + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
+                        vDSP_mtransD(sdata.baseAddress! as! UnsafePointer<Double> + offset, 1, odata.baseAddress! as! UnsafeMutablePointer<Double> + offset, 1, vDSP_Length(cols), vDSP_Length(rows))
                     }
                 }
             }
-            result.data = outputData as! [T]
-        } else /*if T.self == Float16.self*/ {
+            result.data = outputData
+        } else {
             let compData = data.compactMap{ Float($0) }
             var outputData = [Float](repeating: 0, count: totalElements)
             for batch in 0..<batchCount {
@@ -57,7 +57,11 @@ public extension Tensor {
         }
         result.operation = "Transpose"
         result.parents = [
-            (self, { v in TensorKit.transpose(v.gradient!, shape: v.shape)})
+            (self, { v in
+                print("Trans")
+                print(v.gradient!)
+                print(v.shape)
+                return TensorKit.transpose(v.gradient!, shape: v.shape)})
         ]
         return result
     }
