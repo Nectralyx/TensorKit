@@ -24,14 +24,14 @@ public enum TensorInitialization: Codable {
     case empty
 }
 
-open class Tensor<T: TensorType>: Codable, CustomStringConvertible {
+open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
     public var description: String {
         return formatTensor(data, shape: shape)
     }
     public var shape: [Int] // Array to represent the shape of the tensor
     public var data: [T]
     public var operation: String? = nil
-    public var parents: [(Tensor, (Tensor) -> [T])] = []
+    public var parents: [ (Tensor, (Tensor) -> [T])] = []
     public var gradient: [T]?
     //var calculate_grad: Bool = false
     public var dataSize: Int {
@@ -156,6 +156,10 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible {
 
         result += "\n" + String(repeating: "  ", count: depth) + "]"  // Closing bracket on a new line
         return result
+    }
+    
+    public func makeIterator() -> IndexingIterator<[T]> {
+        return data.makeIterator()
     }
 
     
@@ -346,186 +350,6 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible {
             (self, { v in TensorKit.sum(v.gradient!, shape: v.shape, along: gradientMap)})
         ]
         return result
-    }
-    
-    /*@inlinable
-    public func testingSpeed(to targetDimensions: [Int]) -> Tensor {
-        guard targetDimensions != shape else {
-            return self
-        }
-        
-        func canExpand(_ a: [Int], _ b: [Int]) -> Bool {
-            for (x, y) in zip(a, b) {
-                if x == y || x == 1 || y == 1 {
-                    continue
-                } else {
-                    return false
-                }
-            }
-            return true
-        }
-        
-        var newDimensions = shape
-        var mainCandidate = newDimensions
-        while mainCandidate.count < targetDimensions.count {
-            mainCandidate.insert(1, at: 0)
-        }
-        
-        if canExpand(mainCandidate, targetDimensions) {
-            newDimensions = mainCandidate
-        } else {
-            while newDimensions.count < targetDimensions.count {
-                newDimensions.insert(1, at: newDimensions.count)
-            }
-        }
-        
-        guard canExpand(newDimensions, targetDimensions) else {
-            fatalError("Could not expand tensor from \(newDimensions) to \(targetDimensions)")
-        }
-        
-        let gradientMap = newDimensions.enumerated().filter{ $0.element == 1 }.map{ $0.offset }
-        var broadcastedData = data
-        
-        for i in (0..<newDimensions.count).reversed() {
-            if newDimensions[i] == 1 && targetDimensions[i] > 1 {
-                if i == newDimensions.count - 1 {
-                    let returnCount = targetDimensions[i] - newDimensions[i]
-                    let count = dataSize / newDimensions.last!
-                    /*
-                    for row in 0..<count {
-                        broadcastedData.insert(contentsOf: Array(repeating: data[row], count: returnCount), at: row * targetDimensions[i])
-                    }*/
-                    var a = 0
-                    for i in 0..<1000 {
-                        a += 3
-                    }
-                } else {
-                    print("DIAGNOSTIC STATISTICS")
-                    let t1 = CFAbsoluteTimeGetCurrent()
-                    let returnCount = targetDimensions[i] - newDimensions[i]
-                    let t2 = CFAbsoluteTimeGetCurrent()
-                    let t3 = CFAbsoluteTimeGetCurrent()
-                    //broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
-                    //Start RepeatArray
-                    
-                    
-                    // Calculate the total length of the resulting array
-                    let repeatedLength = broadcastedData.count * returnCount
-                    if T.self == Float.self {
-                        let ttt1 = CFAbsoluteTimeGetCurrent()
-                        // Create an output array with the required length, initialized to zero
-                        var result = [Float](repeating: 0, count: repeatedLength)
-                        
-                        // Use unsafe mutable buffer pointers for efficient copying
-                        result.withUnsafeMutableBufferPointer { resultPointer in
-                            // Get a pointer to the start of the result buffer
-                            //let resultBase = resultPointer.baseAddress!
-                            guard let resultBase = resultPointer.baseAddress else {
-                                fatalError("Result base address is nil")
-                            }
-                            // Copy the original array into the result buffer for the first time
-                            broadcastedData.withUnsafeBufferPointer { arrayPointer in
-                                // Get a pointer to the start of the array buffer
-                                guard let arrayBase = arrayPointer.baseAddress else {
-                                    fatalError("Array base address is nil")
-                                }
-                                // Copy the original array into the result buffer
-                                vDSP_mmov(arrayBase as! UnsafePointer<Float>, resultBase, vDSP_Length(broadcastedData.count), 1, vDSP_Length(broadcastedData.count), 1)
-                                // Repeat the copy operation using exponential growth
-                                var currentLength = broadcastedData.count
-                                while currentLength < repeatedLength {
-                                    // Double the size of copied elements each time
-                                    let remainingLength = min(currentLength, repeatedLength - currentLength)
-                                    vDSP_mmov(resultBase, resultBase + currentLength, vDSP_Length(remainingLength), 1, vDSP_Length(remainingLength), 1)
-                                    currentLength += remainingLength
-                                }
-                            }
-                        }
-                        let ttt2 = CFAbsoluteTimeGetCurrent()
-                        print("Inner repeatArray: \(ttt2 - ttt1)")
-                        //broadcastedData.append(contentsOf: result as! [T])
-                        appendVector(result as! [T], to: &broadcastedData)
-                    }
-
-
-                    // End RepeatArray
-                    let t4 = CFAbsoluteTimeGetCurrent()
-                    //broadcastedData.append(contentsOf: array)
-                    let t5 = CFAbsoluteTimeGetCurrent()
-                    newDimensions[i] = targetDimensions[i]
-                    
-                    print("Calculated internal properties: \(t2 - t1)")
-                    print("Generated array: \(t3 - t2)")
-                    print("Generated array data: \(t4 - t3)")
-                    print("Applied data: \(t5 - t4)")
-                    print("Total time: \(t5 - t1)")
-                }
-            }
-        }
-        
-        return self
-    } */
-    
-    @inlinable
-    public func testingSpeed(to targetDimensions: [Int]) -> Tensor {
-        guard targetDimensions != shape else {
-            return self
-        }
-        
-        func canExpand(_ a: [Int], _ b: [Int]) -> Bool {
-            for (x, y) in zip(a, b) {
-                if x == y || x == 1 || y == 1 {
-                    continue
-                } else {
-                    return false
-                }
-            }
-            return true
-        }
-        
-        var newDimensions = shape
-        var mainCandidate = newDimensions
-        while mainCandidate.count < targetDimensions.count {
-            mainCandidate.insert(1, at: 0)
-        }
-        
-        if canExpand(mainCandidate, targetDimensions) {
-            newDimensions = mainCandidate
-        } else {
-            while newDimensions.count < targetDimensions.count {
-                newDimensions.insert(1, at: newDimensions.count)
-            }
-        }
-        
-        _ = newDimensions.enumerated().filter{ $0.element == 1 }.map{ $0.offset }
-        var broadcastedData = data
-        
-        for i in (0..<newDimensions.count).reversed() {
-            if newDimensions[i] == 1 && targetDimensions[i] > 1 {
-                if i == newDimensions.count - 1 {
-                    _ = targetDimensions[i] - newDimensions[i]
-                    _ = dataSize / newDimensions.last!
-                    /*
-                    for row in 0..<count {
-                        broadcastedData.insert(contentsOf: Array(repeating: data[row], count: returnCount), at: row * targetDimensions[i])
-                    }
-                     */
-                    var a = 0
-                    for _ in 0..<1000 {
-                        a += 3
-                    }
-                } else {
-                    _ = targetDimensions[i] - newDimensions[i]
-                    //broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
-                    broadcastedData = repeatArray(broadcastedData, count: targetDimensions[i])
-                    //let result = repeatArray(broadcastedData, count: returnCount)
-                    //broadcastedData.append(contentsOf: result)
-                    newDimensions[i] = targetDimensions[i]
-                }
-            }
-        }
-        
-        return self
     }
     
     @inlinable
@@ -1085,6 +909,9 @@ public func inverseDivide<T: TensorType>(_ input: [T], s: T) -> [T] {
 
 @inlinable
 public func matrixMultiply<T: TensorType>(_ a: [T], _ b: [T], aShape: [Int], bShape: [Int]) -> [T] {
+    guard aShape.count >= 2 && bShape.count >= 2 else {
+        fatalError("Not enough dimensions for matrix multiplication")
+    }
     guard aShape.last! == bShape.dropLast().last! else {
         fatalError("Incorrect shapes for matrix multiplication")
     }
@@ -1334,6 +1161,68 @@ public func add<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
 }
 
 @inlinable
+public func nadd<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
+    guard x.count == y.count else {
+        fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
+    }
+    let result = x.count
+    if T.self == Float.self {
+        var outputData = [T](repeating: 0, count: x.count)
+        
+        x.withUnsafeBufferPointer { lBuffer in
+            y.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                    vvadd(
+                        lBuffer.baseAddress! as? UnsafePointer<Float>,
+                        rBuffer.baseAddress! as? UnsafePointer<Float>,
+                        oBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                        Int32(result)
+                    )
+                }
+            }
+        }
+        
+        return outputData
+    } else if T.self == Double.self {
+        var outputData = [T](repeating: 0, count: result)
+
+        x.withUnsafeBufferPointer { lBuffer in
+            y.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                    vvaddD(
+                        lBuffer.baseAddress! as? UnsafePointer<Double>,
+                        rBuffer.baseAddress! as? UnsafePointer<Double>,
+                        oBuffer.baseAddress! as! UnsafeMutablePointer<Double>,
+                        Int32(result)
+                    )
+                }
+            }
+        }
+        
+        return outputData
+    } else {
+        var outputData = [Float](repeating: 0, count: result)
+        
+        let lDataFloat = x.compactMap { Float($0) }
+        let rDataFloat = y.compactMap { Float($0) }
+        
+        lDataFloat.withUnsafeBufferPointer { lBuffer in
+            rDataFloat.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                    vvadd(
+                        lBuffer.baseAddress! as? UnsafePointer<Float>,
+                        rBuffer.baseAddress! as? UnsafePointer<Float>,
+                        oBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                        Int32(result)
+                    )
+                }
+            }
+        }
+        return outputData as! [T]
+    }
+}
+
+@inlinable
 public func multiply<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
     guard x.count == y.count else {
         fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
@@ -1393,4 +1282,143 @@ public func multiply<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
         }
         return outputData as! [T]
     }
+}
+
+@inlinable
+public func sin<T: TensorType>(_ x: [T]) -> [T] {
+    var totalSize = Int32(x.count)
+    var result = [T](repeating: 0, count: x.count)
+    if T.self == Float.self {
+        x.withUnsafeBufferPointer { xBuffer in
+            result.withUnsafeMutableBufferPointer { yBuffer in
+                vvsinf(yBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                       xBuffer.baseAddress! as! UnsafePointer<Float>,
+                       &totalSize
+                )
+            }
+        }
+        return result
+    } else if T.self == Double.self {
+        x.withUnsafeBufferPointer { xBuffer in
+            result.withUnsafeMutableBufferPointer { yBuffer in
+                vvsin(yBuffer.baseAddress! as! UnsafeMutablePointer<Double>,
+                       xBuffer.baseAddress! as! UnsafePointer<Double>,
+                       &totalSize
+                )
+            }
+        }
+        return result
+    } else {
+        x.withUnsafeBufferPointer { xBuffer in
+            result.withUnsafeMutableBufferPointer { yBuffer in
+                vvsinf(yBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                       xBuffer.baseAddress! as! UnsafePointer<Float>,
+                       &totalSize
+                )
+            }
+        }
+        return result
+    }
+}
+
+@inlinable
+public func cos<T: TensorType>(_ x: [T]) -> [T] {
+    var totalSize = Int32(x.count)
+    var result = [T](repeating: 0, count: x.count)
+    if T.self == Float.self {
+        x.withUnsafeBufferPointer { xBuffer in
+            result.withUnsafeMutableBufferPointer { yBuffer in
+                vvcosf(yBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                       xBuffer.baseAddress! as! UnsafePointer<Float>,
+                       &totalSize
+                )
+            }
+        }
+        return result
+    } else if T.self == Double.self {
+        x.withUnsafeBufferPointer { xBuffer in
+            result.withUnsafeMutableBufferPointer { yBuffer in
+                vvcos(yBuffer.baseAddress! as! UnsafeMutablePointer<Double>,
+                       xBuffer.baseAddress! as! UnsafePointer<Double>,
+                       &totalSize
+                )
+            }
+        }
+        return result
+    } else {
+        x.withUnsafeBufferPointer { xBuffer in
+            result.withUnsafeMutableBufferPointer { yBuffer in
+                vvcosf(yBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
+                       xBuffer.baseAddress! as! UnsafePointer<Float>,
+                       &totalSize
+                )
+            }
+        }
+        return result
+    }
+}
+/*
+@inlinable
+public func concatenate<T: TensorType>(_ x: [Tensor<T>]) -> Tensor<T> {
+    var outputShape = [Int]()
+    var outputData = [T]()
+    var outputGrads = [T]()
+    var totalSize = 0
+    var hasGrad = false
+    for tensor in x {
+        if tensor.gradient != nil {
+            hasGrad = true
+        }
+        totalSize += tensor.dataSize
+    }
+    outputData.reserveCapacity(totalSize)
+    if hasGrad {
+        outputGrads.reserveCapacity(totalSize)
+    }
+    
+    for tensor in x {
+        while tensor.shape.count < outputShape.count {
+            tensor.shape.insert(1, at: 0)
+        }
+        outputShape = zip(outputShape, tensor.shape).map{ $0.0 + $0.1 }
+        outputData.append(contentsOf: tensor.data)
+        if hasGrad {
+            outputGrads.append(contentsOf: tensor.gradient ?? [])
+        }
+    }
+    print("outputData of shape: \(outputShape)")
+    print(outputData)
+    var result = Tensor<T>(outputData, shape: outputShape, calculate_grad: hasGrad)
+    if hasGrad {
+        result.gradient = outputGrads
+    }
+    result.operation = "Concatenation"
+    return result
+}*/
+
+
+@inlinable
+public func concatenate<T: TensorType>(_ x: [[T]], _ shapes: [[Int]], dimension: Int) -> [T] {
+    var result = [T]()
+    var outputShape = [Int]()
+    x.withUnsafeBufferPointer{ xBuffer in
+        result.withUnsafeMutableBufferPointer{ yBuffer in
+            shapes.withUnsafeBufferPointer{ sbuffer in
+                outputShape.withUnsafeMutableBufferPointer{ osBuffer in
+                    TKCore.concatenate(
+                        xBuffer.baseAddress! as? UnsafeMutablePointer<UnsafePointer<Float>?>,
+                        sbuffer.baseAddress! as? UnsafeMutablePointer<UnsafePointer<Int32>?>,
+                        Int32(x.count),
+                        Int32(shapes[0].count),
+                        Int32(dimension),
+                        osBuffer.baseAddress! as? UnsafeMutablePointer<Int32>,
+                        yBuffer.baseAddress! as? UnsafeMutablePointer<Float>
+                    )
+                }
+            }
+        }
+    }
+    print(result)
+    print(outputShape)
+    return result
 }

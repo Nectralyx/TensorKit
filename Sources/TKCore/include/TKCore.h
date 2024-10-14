@@ -13,6 +13,10 @@
 #include <cstring>  // For std::memcpy
 #include <iostream>
 #include <algorithm> //For std::min
+#include <cmath>
+#include <numeric>
+#include <vector>
+#include <limits>
 /*
 static void vvadd(const float* a, const float* b, float* result, int size) {
     for (int i = 0; i < size; i += 2) {
@@ -267,6 +271,72 @@ static void lowerTriangleD(int rows, int cols, double upper, double lower, doubl
     }
 }
 
+float* matrixMultiply(const float* a, const float* b, const int* aShape, const int* bShape) {
+    // Matrix dimensions
+    int aRows = aShape[0];
+    int aCols = aShape[1];
+    int bRows = bShape[0];
+    int bCols = bShape[1];
+
+    // Ensure that the inner dimensions match (aCols == bRows)
+    if (aCols != bRows) {
+        std::cerr << "Matrix dimensions do not match for multiplication!" << std::endl;
+        return nullptr;  // Return null pointer on error
+    }
+
+    // Allocate memory for the result matrix (aRows x bCols)
+    float* result = new float[aRows * bCols];
+
+    // Initialize result matrix to zero
+    for (int i = 0; i < aRows * bCols; i++) {
+        result[i] = 0.0f;
+    }
+
+    // Perform matrix multiplication
+    for (int i = 0; i < aRows; ++i) {
+        for (int j = 0; j < bCols; ++j) {
+            for (int k = 0; k < aCols; ++k) {
+                result[i * bCols + j] += a[i * aCols + k] * b[k * bCols + j];
+            }
+        }
+    }
+
+    return result;
+}
+
+double* matrixMultiplyD(const double* a, const double* b, const int* aShape, const int* bShape) {
+    // Matrix dimensions
+    int aRows = aShape[0];
+    int aCols = aShape[1];
+    int bRows = bShape[0];
+    int bCols = bShape[1];
+
+    // Ensure that the inner dimensions match (aCols == bRows)
+    if (aCols != bRows) {
+        std::cerr << "Matrix dimensions do not match for multiplication!" << std::endl;
+        return nullptr;  // Return null pointer on error
+    }
+
+    // Allocate memory for the result matrix (aRows x bCols)
+    double* result = new double[aRows * bCols];
+
+    // Initialize result matrix to zero
+    for (int i = 0; i < aRows * bCols; i++) {
+        result[i] = 0.0f;
+    }
+
+    // Perform matrix multiplication
+    for (int i = 0; i < aRows; ++i) {
+        for (int j = 0; j < bCols; ++j) {
+            for (int k = 0; k < aCols; ++k) {
+                result[i * bCols + j] += a[i * aCols + k] * b[k * bCols + j];
+            }
+        }
+    }
+
+    return result;
+}
+
 static void repeatArray(const float* input, float* output, size_t inputSize, size_t repeatCount) {
     size_t totalSize = inputSize * repeatCount;
 
@@ -332,6 +402,176 @@ static void sumD(const double* a, int along, double* result, const int* shape, i
         for (int j = 0; j <dimsize; j++) {
             int index = blockStartIndex + j * blockStride;
             result[blockIndex] += a[index];
+        }
+    }
+}
+
+static void posEnc(float* x, const int d_model, const int positions) {
+    for (int pos = 0; pos < positions; pos++) {
+        for (int i = 0; i < d_model; i++) {
+            float angle = pos / powf(10000.0f, (2.0f * (float)(i / 2)) / (float)d_model);
+            // Apply sinf to even indices and cosf to odd indices
+            if (i % 2 == 0) {
+                x[pos * d_model + i] = sinf(angle); // Apply sine to even indices
+            } else {
+                x[pos * d_model + i] = cosf(angle); // Apply cosine to odd indices
+            }
+        }
+    }
+}
+
+static void softmax(const float* x, float* y, const int* shape, const int dim, const int dimSize, const int numBlocks, const int blockStride) {
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * dimSize) + (blockIndex % blockStride);
+        
+        float max_val = -std::numeric_limits<float>::infinity();
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            max_val = std::max(max_val, x[index]);
+        }
+        
+        float expSum = 0.0f;
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            float shiftedValue = x[index] - max_val;
+            y[index] = std::exp(x[index] - max_val);
+            expSum += y[index];
+        }
+        
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            y[index] /= expSum;
+        }
+    }
+}
+
+static void softmaxD(const double* x, double* y, const int* shape, const int dim, const int dimSize, const int numBlocks, const int blockStride) {
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * dimSize) + (blockIndex % blockStride);
+        
+        double max_val = -std::numeric_limits<double>::infinity();
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            max_val = std::max(max_val, x[index]);
+        }
+        
+        double expSum = 0.0;
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            double shiftedValue = x[index] - max_val;
+            y[index] = std::exp(x[index] - max_val);
+            expSum += y[index];
+        }
+        
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            y[index] /= expSum;
+        }
+    }
+}
+
+static void softmaxJacobian(const float* x, float* y, const float* outputGrad, const int dimension, const int* shape, const int jSize, const int dataSize, const int blockStride) {
+    int numBlocks = dataSize / jSize;
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
+        
+        float* slice = new float[jSize];
+        float* outputSlice = new float[jSize];
+        
+        for (int i = 0; i < jSize; i++) {
+            int index = blockStartIndex + i * blockStride;
+            slice[i] = x[index];
+            outputSlice[i] = outputGrad[index];
+        }
+        
+        float* jacobian = new float[jSize * jSize];
+        
+        for (int i = 0; i < jSize; i++) {
+            for (int j = 0; j < jSize; j++) {
+                jacobian[i * jSize + j] = (i == j) ? slice[i] * (1 - slice[i]) : -(slice[i] * slice[j]);
+            }
+        }
+        int aShape[] = {jSize, jSize};
+        int bShape[] = {jSize, 1};
+        float* output = matrixMultiply(jacobian, outputSlice, aShape, bShape);
+        for (int i = 0; i < jSize; i++) {
+            int index = blockStartIndex + i * blockStride;
+            y[index] = output[i];
+        }
+    }
+}
+
+static void softmaxJacobianD(const double* x, double* y, const double* outputGrad, const int dimension, const int* shape, const int jSize, const int dataSize, const int blockStride) {
+    int numBlocks = dataSize / jSize;
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
+        
+        double* slice = new double[jSize];
+        double* outputSlice = new double[jSize];
+        
+        for (int i = 0; i < jSize; i++) {
+            int index = blockStartIndex + i * blockStride;
+            slice[i] = x[index];
+            outputSlice[i] = outputGrad[index];
+        }
+        
+        double* jacobian = new double[jSize * jSize];
+        
+        for (int i = 0; i < jSize; i++) {
+            for (int j = 0; j < jSize; j++) {
+                jacobian[i * jSize + j] = (i == j) ? slice[i] * (1 - slice[i]) : -(slice[i] * slice[j]);
+            }
+        }
+        int aShape[] = {jSize, jSize};
+        int bShape[] = {jSize, 1};
+        double* output = matrixMultiplyD(jacobian, outputSlice, aShape, bShape);
+        for (int i = 0; i < jSize; i++) {
+            int index = blockStartIndex + i * blockStride;
+            y[index] = output[i];
+        }
+    }
+}
+/*
+static void concatenate(const float** x, float* y, const int** shapes, const int* dataSizes, const int dimension, const int* lengthSizes, const int* blockStrides) {
+    
+    for ()
+}*/
+
+static void concatenate(const float** tensors, const int** shapes, const int num_tensors, const int num_dims, const int dimension, int* outputShape, float* y, const int* jSizes, const int inverseDimension) {
+    int total = 1;
+    for (int i = 0; i < num_dims; i++) {
+        total *= outputShape[i];
+    }
+    float* result = new float[total];
+    
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
+        float* resultSlice = new float[inverseDimension];
+        for (int tensor = 0; tensor < num_tensors; tensor++) {
+            int blockLength = 0
+            float* slice = new float[jSizes[tensor]];
+            //float* outputSlice = new float[jSizes[tensor]];
+                
+            for (int i = 0; i < jSize; i++) {
+                int index = blockStartIndex + i * blockStride;
+                slice[i] = x[tensor][index];
+                //outputSlice[i] = outputGrad[index];
+            }
+        }
+            
+        float* jacobian = new float[jSize * jSize];
+            
+        for (int i = 0; i < jSize; i++) {
+            for (int j = 0; j < jSize; j++) {
+                jacobian[i * jSize + j] = (i == j) ? slice[i] * (1 - slice[i]) : -(slice[i] * slice[j]);
+            }
+        }
+        int aShape[] = {jSize, jSize};
+        int bShape[] = {jSize, 1};
+        float* output = matrixMultiply(jacobian, outputSlice, aShape, bShape);
+        for (int i = 0; i < jSize; i++) {
+            int index = blockStartIndex + i * blockStride;
+            y[index] = output[i];
         }
     }
 }

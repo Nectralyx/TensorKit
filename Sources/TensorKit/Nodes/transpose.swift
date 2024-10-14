@@ -58,9 +58,6 @@ public extension Tensor {
         result.operation = "Transpose"
         result.parents = [
             (self, { v in
-                print("Trans")
-                print(v.gradient!)
-                print(v.shape)
                 return TensorKit.transpose(v.gradient!, shape: v.shape)})
         ]
         return result

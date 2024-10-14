@@ -56,16 +56,16 @@ public extension Tensor {
             } else {
                 var outputData = [Float](repeating: 0, count: result.dataSize)
                 
-                let lDataFloat = lhs.data.compactMap { Float($0) }
-                let rDataFloat = rhs.data.compactMap { Float($0) }
+                let lDataFloat = lhs.data.map { Float($0) }
+                let rDataFloat = rhs.data.map { Float($0) }
                 
                 lDataFloat.withUnsafeBufferPointer { rBuffer in
                     rDataFloat.withUnsafeBufferPointer { lBuffer in
                         outputData.withUnsafeMutableBufferPointer { oBuffer in
                             vDSP_vdiv(
-                                lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
-                                rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
-                                oBuffer.baseAddress! as! UnsafeMutablePointer<Float>, 1,
+                                lBuffer.baseAddress!, 1,
+                                rBuffer.baseAddress!, 1,
+                                oBuffer.baseAddress!, 1,
                                 vDSP_Length(result.dataSize)
                             )
                         }
@@ -76,14 +76,8 @@ public extension Tensor {
         result.operation = "/"
         result.parents = [
             (lhs, { v in
-                print("LHS")
-                print(rhs.data)
-                print(v.gradient)
-                print(inverseDivide(rhs.data, s: 1))
                 return multiply(inverseDivide(rhs.data, s: 1), v.gradient!) }),
             (rhs, { v in
-                print("RHS")
-                print(lhs.data)
                 return multiply(lhs.data.enumerated().map{ index, value in -value / (rhs.data[index] * rhs.data[index])}, v.gradient!) })
         ]
         return result
