@@ -1357,68 +1357,79 @@ public func cos<T: TensorType>(_ x: [T]) -> [T] {
         return result
     }
 }
-/*
-@inlinable
-public func concatenate<T: TensorType>(_ x: [Tensor<T>]) -> Tensor<T> {
-    var outputShape = [Int]()
-    var outputData = [T]()
-    var outputGrads = [T]()
-    var totalSize = 0
-    var hasGrad = false
-    for tensor in x {
-        if tensor.gradient != nil {
-            hasGrad = true
-        }
-        totalSize += tensor.dataSize
-    }
-    outputData.reserveCapacity(totalSize)
-    if hasGrad {
-        outputGrads.reserveCapacity(totalSize)
-    }
-    
-    for tensor in x {
-        while tensor.shape.count < outputShape.count {
-            tensor.shape.insert(1, at: 0)
-        }
-        outputShape = zip(outputShape, tensor.shape).map{ $0.0 + $0.1 }
-        outputData.append(contentsOf: tensor.data)
-        if hasGrad {
-            outputGrads.append(contentsOf: tensor.gradient ?? [])
-        }
-    }
-    print("outputData of shape: \(outputShape)")
-    print(outputData)
-    var result = Tensor<T>(outputData, shape: outputShape, calculate_grad: hasGrad)
-    if hasGrad {
-        result.gradient = outputGrads
-    }
-    result.operation = "Concatenation"
-    return result
-}*/
-
 
 @inlinable
-public func concatenate<T: TensorType>(_ x: [[T]], _ shapes: [[Int]], dimension: Int) -> [T] {
-    var result = [T]()
-    var outputShape = [Int]()
-    x.withUnsafeBufferPointer{ xBuffer in
-        result.withUnsafeMutableBufferPointer{ yBuffer in
-            shapes.withUnsafeBufferPointer{ sbuffer in
-                outputShape.withUnsafeMutableBufferPointer{ osBuffer in
-                    TKCore.concatenate(
-                        xBuffer.baseAddress! as? UnsafeMutablePointer<UnsafePointer<Float>?>,
-                        sbuffer.baseAddress! as? UnsafeMutablePointer<UnsafePointer<Int32>?>,
-                        Int32(x.count),
-                        Int32(shapes[0].count),
-                        Int32(dimension),
-                        osBuffer.baseAddress! as? UnsafeMutablePointer<Int32>,
-                        yBuffer.baseAddress! as? UnsafeMutablePointer<Float>
-                    )
-                }
+public func concatenate<T: TensorType>(_ x: [Tensor<T>], dimension: Int) -> Tensor<T> {
+    var totalLength = 0
+    for i in x {
+        totalLength += i.shape[dimension]
+    }
+    var resultShape = x[0].shape
+    resultShape.remove(at: dimension)
+    resultShape.insert(totalLength, at: dimension)
+    var result = [T](repeating: 0, count: resultShape.reduce(1, *))
+    let numBlocks = x[0].dataSize / x[0].shape[dimension]
+    let blockStride = x[0].shape.dropFirst(dimension + 1).reduce(1, *)
+    for blockIndex in 0..<numBlocks {
+        var slice = [T](repeating: 0, count: totalLength)
+        var sliceIndex = 0
+        for tensor in x {
+            let jSize = tensor.shape[dimension]
+            let blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride)
+            
+            for i in 0..<jSize {
+                let index = blockStartIndex + i * blockStride
+                slice[sliceIndex] = tensor.data[index]
+                sliceIndex += 1
             }
         }
+        
+        let jSize = totalLength
+        let blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride)
+        //print("blockstartIndex: \(blockStartIndex) | jSize: \(jSize)")
+        for i in 0..<jSize {
+            let index = blockStartIndex + i * blockStride
+            //print("Index: \(index) | Slice: \(slice) | result: \(result)")
+            result[index] = slice[i]
+            
+        }
+        
+        print("Finished Slice: ")
+        print(slice)
     }
-    print(result)
-    print(outputShape)
-    return result
+    
+    let output = Tensor<T>(result, shape: resultShape)
+    print("Final Output: ")
+    print(output)
+    
+    /*int numBlocks = dataSize / jSize;
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
+        
+        float* slice = new float[jSize];
+        float* outputSlice = new float[jSize];
+        
+        for (int i = 0; i < jSize; i++) {
+            int index = blockStartIndex + i * blockStride;
+            slice[i] = x[index];
+            outputSlice[i] = outputGrad[index];
+        }
+        
+        float* jacobian = new float[jSize * jSize];
+        
+        for (int i = 0; i < jSize; i++) {
+            for (int j = 0; j < jSize; j++) {
+                jacobian[i * jSize + j] = (i == j) ? slice[i] * (1 - slice[i]) : -(slice[i] * slice[j]);
+            }
+        }
+        int aShape[] = {jSize, jSize};
+        int bShape[] = {jSize, 1};
+        float* output = matrixMultiply(jacobian, outputSlice, aShape, bShape);
+        for (int i = 0; i < jSize; i++) {
+            int index = blockStartIndex + i * blockStride;
+            y[index] = output[i];
+        }
+    }
+*/
+    return Tensor<T>(.empty, shape: [1])
 }
