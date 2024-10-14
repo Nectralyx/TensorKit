@@ -1361,9 +1361,18 @@ public func cos<T: TensorType>(_ x: [T]) -> [T] {
 @inlinable
 public func concatenate<T: TensorType>(_ x: [Tensor<T>], dimension: Int) -> Tensor<T> {
     var totalLength = 0
+    var comp = x[0].shape
+    comp.remove(at: dimension)
     for i in x {
         totalLength += i.shape[dimension]
+        var reducedShape = i.shape
+        reducedShape.remove(at: dimension)
+        print("Comp: \(comp) Reduced: \(reducedShape)")
+        if reducedShape != comp {
+            fatalError("Tensors cannot be concatenated along dimension \(dimension) due to size mismatch.")
+        }
     }
+    
     var resultShape = x[0].shape
     resultShape.remove(at: dimension)
     resultShape.insert(totalLength, at: dimension)
@@ -1401,35 +1410,5 @@ public func concatenate<T: TensorType>(_ x: [Tensor<T>], dimension: Int) -> Tens
     let output = Tensor<T>(result, shape: resultShape)
     print("Final Output: ")
     print(output)
-    
-    /*int numBlocks = dataSize / jSize;
-    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
-        int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
-        
-        float* slice = new float[jSize];
-        float* outputSlice = new float[jSize];
-        
-        for (int i = 0; i < jSize; i++) {
-            int index = blockStartIndex + i * blockStride;
-            slice[i] = x[index];
-            outputSlice[i] = outputGrad[index];
-        }
-        
-        float* jacobian = new float[jSize * jSize];
-        
-        for (int i = 0; i < jSize; i++) {
-            for (int j = 0; j < jSize; j++) {
-                jacobian[i * jSize + j] = (i == j) ? slice[i] * (1 - slice[i]) : -(slice[i] * slice[j]);
-            }
-        }
-        int aShape[] = {jSize, jSize};
-        int bShape[] = {jSize, 1};
-        float* output = matrixMultiply(jacobian, outputSlice, aShape, bShape);
-        for (int i = 0; i < jSize; i++) {
-            int index = blockStartIndex + i * blockStride;
-            y[index] = output[i];
-        }
-    }
-*/
     return Tensor<T>(.empty, shape: [1])
 }

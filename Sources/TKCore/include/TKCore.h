@@ -536,7 +536,7 @@ static void concatenate(const float** x, float* y, const int** shapes, const int
     
     for ()
 }*/
-
+/*
 static void concatenate(const float** tensors, const int** shapes, const int num_tensors, const int num_dims, const int dimension, int* outputShape, float* y, const int* jSizes, const int inverseDimension) {
     int total = 1;
     for (int i = 0; i < num_dims; i++) {
@@ -574,4 +574,4 @@ static void concatenate(const float** tensors, const int** shapes, const int num
             y[index] = output[i];
         }
     }
-}
+}*/
