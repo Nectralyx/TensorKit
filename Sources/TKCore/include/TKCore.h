@@ -531,47 +531,132 @@ static void softmaxJacobianD(const double* x, double* y, const double* outputGra
         }
     }
 }
-/*
-static void concatenate(const float** x, float* y, const int** shapes, const int* dataSizes, const int dimension, const int* lengthSizes, const int* blockStrides) {
-    
-    for ()
-}*/
-/*
-static void concatenate(const float** tensors, const int** shapes, const int num_tensors, const int num_dims, const int dimension, int* outputShape, float* y, const int* jSizes, const int inverseDimension) {
-    int total = 1;
-    for (int i = 0; i < num_dims; i++) {
-        total *= outputShape[i];
+
+static void concatenate(const float** x, float* y, const int numBlocks, const int blockStride, const int totalLength, const int* jSizes, const int xCount) {
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 6; j++) {
+            std::cout << "Value Found: " << x[i][j] << "\n";
+        }
     }
-    float* result = new float[total];
-    
     for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
-        int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
-        float* resultSlice = new float[inverseDimension];
-        for (int tensor = 0; tensor < num_tensors; tensor++) {
-            int blockLength = 0
-            float* slice = new float[jSizes[tensor]];
-            //float* outputSlice = new float[jSizes[tensor]];
-                
+        float* slice = new float[totalLength];
+        int sliceIndex = 0;
+        for (int tensor = 0; tensor < xCount; tensor++) {
+            std::cout << "Tensor: " << tensor << "JSize: " << jSizes[0];
+            const int jSize = jSizes[tensor];
+            std::cout << "Tensor: " << tensor << "Pass 1";
+            const int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
+            std::cout << "Tensor: " << tensor << "Pass 2";
             for (int i = 0; i < jSize; i++) {
-                int index = blockStartIndex + i * blockStride;
-                slice[i] = x[tensor][index];
-                //outputSlice[i] = outputGrad[index];
+                const int index = blockStartIndex + i * blockStride;
+                slice[sliceIndex] = x[tensor][index];
+                std::cout << "slice[" << sliceIndex << "] = x[" << tensor << "][" << index << "] = " << slice[sliceIndex] << "\n";
+                std::cout << x[tensor][index] << "\n";
+                sliceIndex += 1;
             }
+            std::cout << "Tensor: " << tensor << "Pass 3";
         }
-            
-        float* jacobian = new float[jSize * jSize];
-            
+        
+        const int jSize = totalLength;
+        const int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
         for (int i = 0; i < jSize; i++) {
-            for (int j = 0; j < jSize; j++) {
-                jacobian[i * jSize + j] = (i == j) ? slice[i] * (1 - slice[i]) : -(slice[i] * slice[j]);
-            }
-        }
-        int aShape[] = {jSize, jSize};
-        int bShape[] = {jSize, 1};
-        float* output = matrixMultiply(jacobian, outputSlice, aShape, bShape);
-        for (int i = 0; i < jSize; i++) {
-            int index = blockStartIndex + i * blockStride;
-            y[index] = output[i];
+            const int index = blockStartIndex + i * blockStride;
+            y[index] = slice[i];
+            std::cout << slice[i];
         }
     }
-}*/
+}
+
+static void concatenateD(const double** x, double* y, const int numBlocks, const int blockStride, const int totalLength, const int* jSizes, const int xCount) {
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        double* slice = new double[totalLength];
+        int sliceIndex = 0;
+        for (int tensor = 0; tensor < xCount; tensor++) {
+            const int jSize = jSizes[tensor];
+            const int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
+            for (int i = 0; i < jSize; i++) {
+                const int index = blockStartIndex + i * blockStride;
+                slice[sliceIndex] = x[tensor][index];
+                sliceIndex += 1;
+            }
+        }
+        const int jSize = totalLength;
+        const int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
+        for (int i = 0; i < jSize; i++) {
+            const int index = blockStartIndex + i * blockStride;
+            y[index] = slice[i];
+        }
+    }
+}
+
+int* unravelIndex(const int index, const int* shape, const int shapeCount, const int* strides) {
+    int* result = new int[shapeCount];
+    int remainingIndex = index;
+    for (int i = 0; i < shapeCount; i++) {
+        result[i] = remainingIndex / strides[i];
+        remainingIndex = remainingIndex % strides[i];
+    }
+    return result;
+}
+
+int ravelIndex(const int* index, const int* strides, const int shapeCount) {
+    int flatIndex = 0;
+    for (int i = 0; i < shapeCount; i++) {
+        flatIndex += strides[i] * index[i];
+    }
+    return flatIndex;
+}
+
+static void permute(const float* data, const float* grad, float* result, float* gresult, const int* shape, const int* order, const int* oldStrides, const int* newStrides, const int dataSize, const int shapeCount) {
+    for (int i = 0; i < dataSize; i++) {
+        const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
+        int* newIndex = new int[shapeCount];
+        for (int j = 0; j < shapeCount; j++) {
+            newIndex[j] = originalIndex[order[j]];
+        }
+        const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
+        result[newFlatIndex] = data[i];
+        gresult[newFlatIndex] = grad[i];
+        delete[] newIndex;
+    }
+}
+
+static void permuteD(const double* data, const double* grad, double* result, double* gresult, const int* shape, const int* order, const int* oldStrides, const int* newStrides, const int dataSize, const int shapeCount) {
+    for (int i = 0; i < dataSize; i++) {
+        const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
+        int* newIndex = new int[shapeCount];
+        for (int j = 0; j < shapeCount; j++) {
+            newIndex[j] = originalIndex[order[j]];
+        }
+        const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
+        result[newFlatIndex] = data[i];
+        gresult[newFlatIndex] = grad[i];
+        delete[] newIndex;
+    }
+}
+
+static void permuteNoGrad(const float* data, float* result, const int* shape, const int* order, const int* oldStrides, const int* newStrides, const int dataSize, const int shapeCount) {
+    for (int i = 0; i < dataSize; i++) {
+        const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
+        int* newIndex = new int[shapeCount];
+        for (int j = 0; j < shapeCount; j++) {
+            newIndex[j] = originalIndex[order[j]];
+        }
+        const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
+        result[newFlatIndex] = data[i];
+        delete[] newIndex;
+    }
+}
+
+static void permuteNoGradD(const double* data, double* result, const int* shape, const int* order, const int* oldStrides, const int* newStrides, const int dataSize, const int shapeCount) {
+    for (int i = 0; i < dataSize; i++) {
+        const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
+        int* newIndex = new int[shapeCount];
+        for (int j = 0; j < shapeCount; j++) {
+            newIndex[j] = originalIndex[order[j]];
+        }
+        const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
+        result[newFlatIndex] = data[i];
+        delete[] newIndex;
+    }
+}

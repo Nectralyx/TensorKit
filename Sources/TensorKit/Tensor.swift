@@ -353,7 +353,7 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
     }
     
     @inlinable
-    public func indexToFlatIndex(_ indices: [Int]) -> Int {
+    public func ravelIndex(_ indices: [Int]) -> Int {
             // Convert multi-dimensional indices to a flat index
             var flatIndex = 0
             var multiplier = 1
@@ -363,30 +363,215 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
             }
             return flatIndex
         }
+    
+    @inlinable
+    public func permute(_ order: [Int]) -> Tensor {
+        guard order.count == self.shape.count else {
+            fatalError("Shape mismatch")
+        }
+        var result = [T](repeating: 0, count: dataSize)
+        var gresult = [T](repeating: 0, count: dataSize)
+        let originalStrides = generateStrides(shape)
+        let newShape = order.map{ shape[$0] }
+        let newStrides = generateStrides(newShape)
+        if gradient != nil {
+            if T.self == Float.self  {
+                result.withUnsafeMutableBufferPointer{ result in
+                    gresult.withUnsafeMutableBufferPointer{ gResult in
+                        originalStrides.map{ Int32($0) }.withUnsafeBufferPointer{ osBuffer in
+                            newStrides.map{ Int32($0) }.withUnsafeBufferPointer{ nsBuffer in
+                                data.withUnsafeBufferPointer{ xBuffer in
+                                    gradient!.withUnsafeBufferPointer{ qBuffer in
+                                        shape.map{ Int32($0) }.withUnsafeBufferPointer{ sBuffer in
+                                            order.map{ Int32($0) }.withUnsafeBufferPointer{ oBuffer in
+                                                TKCore.permute(
+                                                    xBuffer.baseAddress! as? UnsafePointer<Float>,
+                                                    qBuffer.baseAddress! as? UnsafePointer<Float>,
+                                                    result.baseAddress! as? UnsafeMutablePointer<Float>,
+                                                    gResult.baseAddress! as? UnsafeMutablePointer<Float>,
+                                                    sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                    oBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                    osBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                    nsBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                    Int32(dataSize),
+                                                    Int32(shape.count)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if T.self  == Double.self {
+                result.withUnsafeMutableBufferPointer{ result in
+                    gresult.withUnsafeMutableBufferPointer{ gResult in
+                        originalStrides.map{ Int32($0) }.withUnsafeBufferPointer{ osBuffer in
+                            newStrides.map{ Int32($0) }.withUnsafeBufferPointer{ nsBuffer in
+                                data.withUnsafeBufferPointer{ xBuffer in
+                                    gradient!.withUnsafeBufferPointer{ qBuffer in
+                                        shape.map{ Int32($0) }.withUnsafeBufferPointer{ sBuffer in
+                                            order.map{ Int32($0) }.withUnsafeBufferPointer{ oBuffer in
+                                                TKCore.permuteD(
+                                                    xBuffer.baseAddress! as? UnsafePointer<Double>,
+                                                    qBuffer.baseAddress! as? UnsafePointer<Double>,
+                                                    result.baseAddress! as? UnsafeMutablePointer<Double>,
+                                                    gResult.baseAddress! as? UnsafeMutablePointer<Double>,
+                                                    sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                    oBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                    osBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                    nsBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                    Int32(dataSize),
+                                                    Int32(shape.count)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            if T.self == Float.self  {
+                result.withUnsafeMutableBufferPointer{ result in
+                    originalStrides.map{ Int32($0) }.withUnsafeBufferPointer{ osBuffer in
+                        newStrides.map{ Int32($0) }.withUnsafeBufferPointer{ nsBuffer in
+                            data.withUnsafeBufferPointer{ xBuffer in
+                                shape.map{ Int32($0) }.withUnsafeBufferPointer{ sBuffer in
+                                    order.map{ Int32($0) }.withUnsafeBufferPointer{ oBuffer in
+                                        TKCore.permuteNoGrad(
+                                            xBuffer.baseAddress! as? UnsafePointer<Float>,
+                                            result.baseAddress! as? UnsafeMutablePointer<Float>,
+                                            sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                            oBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                            osBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                            nsBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                            Int32(dataSize),
+                                            Int32(shape.count)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if T.self == Double.self {
+                result.withUnsafeMutableBufferPointer{ result in
+                    originalStrides.map{ Int32($0) }.withUnsafeBufferPointer{ osBuffer in
+                        newStrides.map{ Int32($0) }.withUnsafeBufferPointer{ nsBuffer in
+                            data.withUnsafeBufferPointer{ xBuffer in
+                                shape.map{ Int32($0) }.withUnsafeBufferPointer{ sBuffer in
+                                    order.map{ Int32($0) }.withUnsafeBufferPointer{ oBuffer in
+                                        TKCore.permuteNoGradD(
+                                            xBuffer.baseAddress! as? UnsafePointer<Double>,
+                                            result.baseAddress! as? UnsafeMutablePointer<Double>,
+                                            sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                            oBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                            osBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                            nsBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                            Int32(dataSize),
+                                            Int32(shape.count)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let output = Tensor(result, shape: newShape, calculate_grad: self.gradient != nil)
+        output.gradient = gresult
+        output.parents = [
+            (self, { v in
+                var inverseOrder = order
+                for i in 0..<order.count {
+                    inverseOrder[order[i]] = i
+                }
+                let gnewShape = order.map{ v.shape[$0] }
+                var result = [T](repeating: 0, count: v.dataSize)
+                let originalStrides = generateStrides(v.shape)
+                let newStrides = generateStrides(gnewShape)
+                if T.self == Float.self  {
+                    result.withUnsafeMutableBufferPointer{ result in
+                        originalStrides.map{ Int32($0) }.withUnsafeBufferPointer{ osBuffer in
+                            newStrides.map{ Int32($0) }.withUnsafeBufferPointer{ nsBuffer in
+                                v.gradient!.withUnsafeBufferPointer{ xBuffer in
+                                    output.shape.map{ Int32($0) }.withUnsafeBufferPointer{ sBuffer in
+                                        inverseOrder.map{ Int32($0) }.withUnsafeBufferPointer{ oBuffer in
+                                            TKCore.permuteNoGrad(
+                                                xBuffer.baseAddress! as? UnsafePointer<Float>,
+                                                result.baseAddress! as? UnsafeMutablePointer<Float>,
+                                                sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                oBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                osBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                nsBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                Int32(v.dataSize),
+                                                Int32(v.shape.count)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if T.self  == Double.self {
+                    result.withUnsafeMutableBufferPointer{ result in
+                        originalStrides.map{ Int32($0) }.withUnsafeBufferPointer{ osBuffer in
+                            newStrides.map{ Int32($0) }.withUnsafeBufferPointer{ nsBuffer in
+                                v.gradient!.withUnsafeBufferPointer{ xBuffer in
+                                    output.shape.map{ Int32($0) }.withUnsafeBufferPointer{ sBuffer in
+                                        inverseOrder.map{ Int32($0) }.withUnsafeBufferPointer{ oBuffer in
+                                            TKCore.permuteNoGradD(
+                                                xBuffer.baseAddress! as? UnsafePointer<Double>,
+                                                result.baseAddress! as? UnsafeMutablePointer<Double>,
+                                                sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                oBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                osBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                nsBuffer.baseAddress! as? UnsafePointer<Int32>,
+                                                Int32(v.dataSize),
+                                                Int32(v.shape.count)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                return result
+            })
+        ]
+        output.operation = "Permute: \(order)"
+        return output
+    }
+    
     @inlinable
     public func backward(_ grad: [T] = Array(repeating: 1.0, count: 0), printSteps: Bool = false) {
-        // Check if the gradient sizes match
-        let grad = grad.isEmpty ? [T](repeating: 1.0, count: gradient!.count) : grad
-        // Accumulate gradients
-        for i in 0..<gradient!.count {
-            gradient![i] += grad[i]
+        if gradient != nil {
+            // Check if the gradient sizes match
+            let grad = grad.isEmpty ? [T](repeating: 1.0, count: gradient!.count) : grad
+            // Accumulate gradients
+            gradient = add(gradient!, grad)
+            //gradient = add(gradient, grad)
+            if printSteps {
+                print("Grad At Operation: \(operation ?? "Leaf")")
+                print(gradient!)
+            }
         }
-        //gradient = add(gradient, grad)
-        
-        if printSteps {
-            print("Grad At Operation: \(operation ?? "Leaf")")
-            print(gradient!)
-        }
-        
         for (parent, local) in parents {
             guard parent.gradient != nil else {
                 continue
             }
-            //if parent.calculate_grad {
-                let localGradients = local(self)
-                //let combinedGradients = localGradients
-                parent.backward(localGradients, printSteps: printSteps)
-            //}
+            
+            let localGradients = local(self)
+            parent.backward(localGradients, printSteps: printSteps)
+        }
+        if parents.count != 0 {
+            gradient = nil
         }
     }
 }
@@ -1161,68 +1346,6 @@ public func add<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
 }
 
 @inlinable
-public func nadd<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
-    guard x.count == y.count else {
-        fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
-    }
-    let result = x.count
-    if T.self == Float.self {
-        var outputData = [T](repeating: 0, count: x.count)
-        
-        x.withUnsafeBufferPointer { lBuffer in
-            y.withUnsafeBufferPointer { rBuffer in
-                outputData.withUnsafeMutableBufferPointer { oBuffer in
-                    vvadd(
-                        lBuffer.baseAddress! as? UnsafePointer<Float>,
-                        rBuffer.baseAddress! as? UnsafePointer<Float>,
-                        oBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
-                        Int32(result)
-                    )
-                }
-            }
-        }
-        
-        return outputData
-    } else if T.self == Double.self {
-        var outputData = [T](repeating: 0, count: result)
-
-        x.withUnsafeBufferPointer { lBuffer in
-            y.withUnsafeBufferPointer { rBuffer in
-                outputData.withUnsafeMutableBufferPointer { oBuffer in
-                    vvaddD(
-                        lBuffer.baseAddress! as? UnsafePointer<Double>,
-                        rBuffer.baseAddress! as? UnsafePointer<Double>,
-                        oBuffer.baseAddress! as! UnsafeMutablePointer<Double>,
-                        Int32(result)
-                    )
-                }
-            }
-        }
-        
-        return outputData
-    } else {
-        var outputData = [Float](repeating: 0, count: result)
-        
-        let lDataFloat = x.compactMap { Float($0) }
-        let rDataFloat = y.compactMap { Float($0) }
-        
-        lDataFloat.withUnsafeBufferPointer { lBuffer in
-            rDataFloat.withUnsafeBufferPointer { rBuffer in
-                outputData.withUnsafeMutableBufferPointer { oBuffer in
-                    vvadd(
-                        lBuffer.baseAddress! as? UnsafePointer<Float>,
-                        rBuffer.baseAddress! as? UnsafePointer<Float>,
-                        oBuffer.baseAddress! as! UnsafeMutablePointer<Float>,
-                        Int32(result)
-                    )
-                }
-            }
-        }
-        return outputData as! [T]
-    }
-}
-
-@inlinable
 public func multiply<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
     guard x.count == y.count else {
         fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
@@ -1363,52 +1486,93 @@ public func concatenate<T: TensorType>(_ x: [Tensor<T>], dimension: Int) -> Tens
     var totalLength = 0
     var comp = x[0].shape
     comp.remove(at: dimension)
+    var parents: [(Tensor<T>, (Tensor<T>) -> [T])] = []
+    var jSizes: [Int] = []
+    var hasGrad = false
+    var placementTensors: [Tensor<T>] = []
     for i in x {
+        if i.gradient != nil {
+            hasGrad = true
+        }
+        jSizes.append(i.shape[dimension])
         totalLength += i.shape[dimension]
         var reducedShape = i.shape
         reducedShape.remove(at: dimension)
-        print("Comp: \(comp) Reduced: \(reducedShape)")
         if reducedShape != comp {
             fatalError("Tensors cannot be concatenated along dimension \(dimension) due to size mismatch.")
         }
     }
-    
     var resultShape = x[0].shape
     resultShape.remove(at: dimension)
     resultShape.insert(totalLength, at: dimension)
-    var result = [T](repeating: 0, count: resultShape.reduce(1, *))
+    let finalDataSize = resultShape.reduce(1, *)
+    var parentIndices = [Int](repeating: 0, count: finalDataSize)
     let numBlocks = x[0].dataSize / x[0].shape[dimension]
+    var result = [T](repeating: 0, count: finalDataSize)
+    var gradResult = [T](repeating: 0, count: hasGrad ? finalDataSize : 0)
     let blockStride = x[0].shape.dropFirst(dimension + 1).reduce(1, *)
     for blockIndex in 0..<numBlocks {
         var slice = [T](repeating: 0, count: totalLength)
+        var gslice = [T](repeating: 0, count: hasGrad ? totalLength : 0)
+        var pislice = [Int](repeating: 0, count: hasGrad ? totalLength : 0)
+        
         var sliceIndex = 0
-        for tensor in x {
+        for (tindex, tensor) in x.enumerated() {
             let jSize = tensor.shape[dimension]
             let blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride)
-            
             for i in 0..<jSize {
                 let index = blockStartIndex + i * blockStride
                 slice[sliceIndex] = tensor.data[index]
+                if hasGrad {
+                    gslice[sliceIndex] = tensor.gradient![index]
+                    pislice[sliceIndex] = tindex
+                }
                 sliceIndex += 1
             }
         }
-        
         let jSize = totalLength
         let blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride)
-        //print("blockstartIndex: \(blockStartIndex) | jSize: \(jSize)")
         for i in 0..<jSize {
             let index = blockStartIndex + i * blockStride
-            //print("Index: \(index) | Slice: \(slice) | result: \(result)")
             result[index] = slice[i]
-            
+            if hasGrad {
+                gradResult[index] = gslice[i]
+                parentIndices[index] = pislice[i]
+            }
         }
-        
-        print("Finished Slice: ")
-        print(slice)
     }
-    
+    //print("ParentMap: \(parentIndices)")
+    /*var gradIndices = [Int](repeating: 0, count: x.count)
+    var gradients = [[T]](repeating: [], count: 0)
+    for i in 0..<x.count {
+        gradients.append([T](repeating: 0, count: x[i].dataSize))
+    }*/
+    if hasGrad {
+        for (outerIndex, i) in x.enumerated() {
+            var originalShape = i.shape
+            let placement = Tensor<T>(i.data, shape: i.shape)
+            placement.parents = [
+                (i, { v in
+                    var result = [T](repeating: 0, count: i.dataSize)
+                    var resultIndex = 0
+                    for i in 0..<v.dataSize {
+                        if parentIndices[i] == outerIndex {
+                            result[resultIndex] = v.gradient![i]
+                            resultIndex += 1
+                        }
+                    }
+                    return result
+                })
+            ]
+            parents.append(contentsOf: placement.parents)
+        }
+    }
+    //print("Result: \(result)")
     let output = Tensor<T>(result, shape: resultShape)
-    print("Final Output: ")
-    print(output)
-    return Tensor<T>(.empty, shape: [1])
+    output.parents = parents
+    output.operation = "Concatenate"
+    output.gradient = hasGrad ? gradResult : nil
+    //print("Final Output: ")
+    //print(output)
+    return output
 }
