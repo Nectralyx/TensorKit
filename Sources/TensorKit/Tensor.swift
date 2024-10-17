@@ -302,6 +302,18 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
         fatalError("Could Not reshape data properly")
     }
     
+    @inlinable
+    public func view(_ shape: [Int]) -> Tensor {
+        guard shape.reduce(1, *) == dataSize else {
+            fatalError("Could not match data from \(self.shape) to \(shape). Did you mean to use Reshape?")
+        }
+        let result = Tensor(data, shape: shape, calculate_grad: self.gradient != nil)
+        result.parents = [
+            (self, { v in v.gradient! })
+        ]
+        return result
+    }
+    
     // Broadcast to new dimensions
     @inlinable
     public func expand(to targetDimensions: [Int]) -> Tensor {
@@ -566,8 +578,10 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
             guard parent.gradient != nil else {
                 continue
             }
-            
+            //let t1 = CFAbsoluteTimeGetCurrent()
             let localGradients = local(self)
+            //let t2 = CFAbsoluteTimeGetCurrent()
+            //print("Grad Calc at \(parent.operation ?? "Leaf") From Child \(operation!): \(t2 - t1)")
             parent.backward(localGradients, printSteps: printSteps)
         }
         if parents.count != 0 {

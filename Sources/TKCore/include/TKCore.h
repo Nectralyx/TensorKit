@@ -16,7 +16,26 @@
 #include <cmath>
 #include <numeric>
 #include <vector>
+#include <sys/sysctl.h>
 #include <limits>
+
+// Define the block size for tiling
+static int calculateBlockSize() {
+    // L1 cache size per core (in bytes), this is an estimate
+    const int cacheSize = 32 * 1024; // 32 KB typical L1 cache size
+    const int cacheLineSize = 64;    // 64 bytes per cache line (common)
+
+    // Estimate how many floats can fit in the cache (each float is 4 bytes)
+    int blockSize = cacheSize / sizeof(float);
+
+    // Align block size to cache line size for better memory access patterns
+    blockSize = (blockSize / cacheLineSize) * cacheLineSize;
+    std::cout << "Optimal Block Size Found: " << blockSize << "\n";
+    return blockSize;
+}
+
+static int BLOCK_SIZE = calculateBlockSize();
+
 /*
 static void vvadd(const float* a, const float* b, float* result, int size) {
     for (int i = 0; i < size; i += 2) {
@@ -271,6 +290,7 @@ static void lowerTriangleD(int rows, int cols, double upper, double lower, doubl
     }
 }
 
+/*
 float* matrixMultiply(const float* a, const float* b, const int* aShape, const int* bShape) {
     // Matrix dimensions
     int aRows = aShape[0];
@@ -298,6 +318,34 @@ float* matrixMultiply(const float* a, const float* b, const int* aShape, const i
             for (int k = 0; k < aCols; ++k) {
                 result[i * bCols + j] += a[i * aCols + k] * b[k * bCols + j];
             }
+        }
+    }
+
+    return result;
+}
+*/
+
+float* matrixMultiply(const float* a, const float* b, const int* aShape, const int* bShape) {
+    int aRows = aShape[0];
+    int aCols = aShape[1];
+    int bRows = bShape[0];
+    int bCols = bShape[1];
+
+    if (aCols != bRows) {
+        std::cerr << "Matrix dimensions do not match for multiplication!" << std::endl;
+        return nullptr;
+    }
+
+    float* result = new float[aRows * bCols](); // Initialize to zero
+
+    // Perform matrix multiplication
+    for (int i = 0; i < aRows; ++i) {
+        for (int j = 0; j < bCols; ++j) {
+            float sum = 0.0f; // Use a temporary variable to accumulate the result
+            for (int k = 0; k < aCols; ++k) {
+                sum += a[i * aCols + k] * b[k * bCols + j];
+            }
+            result[i * bCols + j] = sum; // Store the result
         }
     }
 
@@ -470,35 +518,116 @@ static void softmaxD(const double* x, double* y, const int* shape, const int dim
     }
 }
 
+#include <chrono>
+/*
 static void softmaxJacobian(const float* x, float* y, const float* outputGrad, const int dimension, const int* shape, const int jSize, const int dataSize, const int blockStride) {
+    using namespace std::chrono;
     int numBlocks = dataSize / jSize;
+    float* slice = new float[jSize];
+    float* outputSlice = new float[jSize];
+    float* jacobian = new float[jSize * jSize];
+    auto start = high_resolution_clock::now();
+    #pragma omp parallel for
     for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
         int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
-        
-        float* slice = new float[jSize];
-        float* outputSlice = new float[jSize];
-        
+        auto blockStartTime = high_resolution_clock::now(); // Start block timing
         for (int i = 0; i < jSize; i++) {
             int index = blockStartIndex + i * blockStride;
             slice[i] = x[index];
             outputSlice[i] = outputGrad[index];
         }
         
-        float* jacobian = new float[jSize * jSize];
+        auto extractEndTime = high_resolution_clock::now(); // End time for data extraction
+        std::cout << "Data extraction time: " << duration_cast<microseconds>(extractEndTime - blockStartTime).count() << " µs\n";
         
         for (int i = 0; i < jSize; i++) {
             for (int j = 0; j < jSize; j++) {
                 jacobian[i * jSize + j] = (i == j) ? slice[i] * (1 - slice[i]) : -(slice[i] * slice[j]);
             }
         }
+        
+        auto jacobianEndTime = high_resolution_clock::now(); // End time for Jacobian construction
+        std::cout << "Jacobian construction time: " << duration_cast<microseconds>(jacobianEndTime - extractEndTime).count() << " µs\n";
+        
         int aShape[] = {jSize, jSize};
         int bShape[] = {jSize, 1};
         float* output = matrixMultiply(jacobian, outputSlice, aShape, bShape);
+        auto matrixMultEndTime = high_resolution_clock::now(); // End time for matrix multiplication
+        std::cout << "Matrix multiplication time: " << duration_cast<microseconds>(matrixMultEndTime - jacobianEndTime).count() << " µs\n";
         for (int i = 0; i < jSize; i++) {
             int index = blockStartIndex + i * blockStride;
             y[index] = output[i];
         }
+        
+        auto writeEndTime = high_resolution_clock::now(); // End time for writing back results
+        std::cout << "Write back time: " << duration_cast<microseconds>(writeEndTime - matrixMultEndTime).count() << " µs\n";
+
+        // Total time for block
+        std::cout << "Total time for block " << blockIndex << ": " << duration_cast<microseconds>(writeEndTime - blockStartTime).count() << " µs\n";
     }
+    auto end = high_resolution_clock::now();
+    std::cout << "Total time for function: " << duration_cast<milliseconds>(end - start).count() << " ms\n";
+    delete[] slice;
+    delete[] outputSlice;
+    delete[] jacobian;
+}
+*/
+
+static void softmaxJacobian(const float* x, float* y, const float* outputGrad, const int dimension, const int* shape, const int jSize, const int dataSize, const int blockStride) {
+    using namespace std::chrono;
+    
+    int numBlocks = dataSize / jSize;
+    
+    // Allocate memory once outside the loop
+    float* jacobian = new float[jSize * jSize];
+    
+    auto start = high_resolution_clock::now();
+    
+    // Parallelize over blocks, and use thread-private arrays for slices
+    #pragma omp parallel
+    {
+        float* slice = new float[jSize];
+        float* outputSlice = new float[jSize];
+        
+        #pragma omp for
+        for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+            int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
+            
+            // Efficiently extract data for the current block
+            for (int i = 0; i < jSize; i++) {
+                int index = blockStartIndex + i * blockStride;
+                slice[i] = x[index];
+                outputSlice[i] = outputGrad[index];
+            }
+            
+            // Construct the Jacobian matrix (optimize for diagonal and off-diagonal)
+            for (int i = 0; i < jSize; i++) {
+                for (int j = 0; j < jSize; j++) {
+                    jacobian[i * jSize + j] = (i == j) ? slice[i] * (1 - slice[i]) : -(slice[i] * slice[j]);
+                }
+            }
+            
+            // Perform matrix-vector multiplication (Jacobian * outputSlice)
+            for (int i = 0; i < jSize; i++) {
+                float sum = 0.0f;
+                for (int j = 0; j < jSize; j++) {
+                    sum += jacobian[i * jSize + j] * outputSlice[j];
+                }
+                int index = blockStartIndex + i * blockStride;
+                y[index] = sum;  // Write the result back
+            }
+        }
+        
+        // Cleanup thread-local memory
+        delete[] slice;
+        delete[] outputSlice;
+    }
+    
+    auto end = high_resolution_clock::now();
+    std::cout << "Total time for function: " << duration_cast<milliseconds>(end - start).count() << " ms\n";
+    
+    // Cleanup
+    delete[] jacobian;
 }
 
 static void softmaxJacobianD(const double* x, double* y, const double* outputGrad, const int dimension, const int* shape, const int jSize, const int dataSize, const int blockStride) {
@@ -606,8 +735,9 @@ int ravelIndex(const int* index, const int* strides, const int shapeCount) {
     }
     return flatIndex;
 }
-
+/*
 static void permute(const float* data, const float* grad, float* result, float* gresult, const int* shape, const int* order, const int* oldStrides, const int* newStrides, const int dataSize, const int shapeCount) {
+    #pragma omp parallel for
     for (int i = 0; i < dataSize; i++) {
         const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
         int* newIndex = new int[shapeCount];
@@ -618,45 +748,119 @@ static void permute(const float* data, const float* grad, float* result, float* 
         result[newFlatIndex] = data[i];
         gresult[newFlatIndex] = grad[i];
         delete[] newIndex;
+    }
+}
+*/
+
+static void permute(const float* data, const float* grad, float* result, float* gresult,
+                    const int* shape, const int* order, const int* oldStrides,
+                    const int* newStrides, const int dataSize, const int shapeCount) {
+    
+    // Divide dataSize into blocks
+    #pragma omp parallel for
+    for (int blockStart = 0; blockStart < dataSize; blockStart += BLOCK_SIZE) {
+        // Process a block of size BLOCK_SIZE, or the remainder at the end
+        int blockEnd = std::min(blockStart + BLOCK_SIZE, dataSize);
+        
+        for (int i = blockStart; i < blockEnd; i++) {
+            const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
+
+            // Preallocate newIndex once outside inner loop
+            int newIndex[shapeCount];  // Use stack allocation for speed
+
+            // Compute newIndex using the permutation order
+            for (int j = 0; j < shapeCount; j++) {
+                newIndex[j] = originalIndex[order[j]];
+            }
+
+            // Compute the flattened index for the result array
+            const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
+
+            // Assign values to the result arrays
+            result[newFlatIndex] = data[i];
+            gresult[newFlatIndex] = grad[i];
+        }
     }
 }
 
 static void permuteD(const double* data, const double* grad, double* result, double* gresult, const int* shape, const int* order, const int* oldStrides, const int* newStrides, const int dataSize, const int shapeCount) {
-    for (int i = 0; i < dataSize; i++) {
-        const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
-        int* newIndex = new int[shapeCount];
-        for (int j = 0; j < shapeCount; j++) {
-            newIndex[j] = originalIndex[order[j]];
+    // Divide dataSize into blocks
+    #pragma omp parallel for
+    for (int blockStart = 0; blockStart < dataSize; blockStart += BLOCK_SIZE) {
+        // Process a block of size BLOCK_SIZE, or the remainder at the end
+        int blockEnd = std::min(blockStart + BLOCK_SIZE, dataSize);
+        
+        for (int i = blockStart; i < blockEnd; i++) {
+            const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
+
+            // Preallocate newIndex once outside inner loop
+            int newIndex[shapeCount];  // Use stack allocation for speed
+
+            // Compute newIndex using the permutation order
+            for (int j = 0; j < shapeCount; j++) {
+                newIndex[j] = originalIndex[order[j]];
+            }
+
+            // Compute the flattened index for the result array
+            const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
+
+            // Assign values to the result arrays
+            result[newFlatIndex] = data[i];
+            gresult[newFlatIndex] = grad[i];
         }
-        const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
-        result[newFlatIndex] = data[i];
-        gresult[newFlatIndex] = grad[i];
-        delete[] newIndex;
     }
 }
 
 static void permuteNoGrad(const float* data, float* result, const int* shape, const int* order, const int* oldStrides, const int* newStrides, const int dataSize, const int shapeCount) {
-    for (int i = 0; i < dataSize; i++) {
-        const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
-        int* newIndex = new int[shapeCount];
-        for (int j = 0; j < shapeCount; j++) {
-            newIndex[j] = originalIndex[order[j]];
+    // Divide dataSize into blocks
+    #pragma omp parallel for
+    for (int blockStart = 0; blockStart < dataSize; blockStart += BLOCK_SIZE) {
+        // Process a block of size BLOCK_SIZE, or the remainder at the end
+        int blockEnd = std::min(blockStart + BLOCK_SIZE, dataSize);
+        
+        for (int i = blockStart; i < blockEnd; i++) {
+            const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
+
+            // Preallocate newIndex once outside inner loop
+            int newIndex[shapeCount];  // Use stack allocation for speed
+
+            // Compute newIndex using the permutation order
+            for (int j = 0; j < shapeCount; j++) {
+                newIndex[j] = originalIndex[order[j]];
+            }
+
+            // Compute the flattened index for the result array
+            const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
+
+            // Assign values to the result arrays
+            result[newFlatIndex] = data[i];
         }
-        const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
-        result[newFlatIndex] = data[i];
-        delete[] newIndex;
     }
 }
 
 static void permuteNoGradD(const double* data, double* result, const int* shape, const int* order, const int* oldStrides, const int* newStrides, const int dataSize, const int shapeCount) {
-    for (int i = 0; i < dataSize; i++) {
-        const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
-        int* newIndex = new int[shapeCount];
-        for (int j = 0; j < shapeCount; j++) {
-            newIndex[j] = originalIndex[order[j]];
+    // Divide dataSize into blocks
+    #pragma omp parallel for
+    for (int blockStart = 0; blockStart < dataSize; blockStart += BLOCK_SIZE) {
+        // Process a block of size BLOCK_SIZE, or the remainder at the end
+        int blockEnd = std::min(blockStart + BLOCK_SIZE, dataSize);
+        
+        for (int i = blockStart; i < blockEnd; i++) {
+            const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
+
+            // Preallocate newIndex once outside inner loop
+            int newIndex[shapeCount];  // Use stack allocation for speed
+
+            // Compute newIndex using the permutation order
+            for (int j = 0; j < shapeCount; j++) {
+                newIndex[j] = originalIndex[order[j]];
+            }
+
+            // Compute the flattened index for the result array
+            const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
+
+            // Assign values to the result arrays
+            result[newFlatIndex] = data[i];
         }
-        const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
-        result[newFlatIndex] = data[i];
-        delete[] newIndex;
     }
 }

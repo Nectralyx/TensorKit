@@ -19,6 +19,7 @@ internal func softmaxJacobian<T: TensorType>(_ y: Tensor<T>, outputGrad: [T], _ 
     var outputs = [T](repeating: 0, count: outputGrad.count)
     let blockStride = y.shape.dropFirst(dimension + 1).reduce(1, *)
     if T.self == Float.self {
+        let t1 = CFAbsoluteTimeGetCurrent()
         y.data.withUnsafeBufferPointer{ xBuffer in
             outputGrad.withUnsafeBufferPointer{ oBuffer in
                 outputs.withUnsafeMutableBufferPointer{ yBuffer in
@@ -37,6 +38,8 @@ internal func softmaxJacobian<T: TensorType>(_ y: Tensor<T>, outputGrad: [T], _ 
                 }
             }
         }
+        let t2 = CFAbsoluteTimeGetCurrent()
+        print("Softmax Jacobian took \(t2 - t1) seconds.")
     } else if T.self == Double.self {
         y.data.withUnsafeBufferPointer{ xBuffer in
             outputGrad.withUnsafeBufferPointer{ oBuffer in

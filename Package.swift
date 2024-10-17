@@ -24,7 +24,7 @@ let package = Package(
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "TensorKit",
-            dependencies: ["TKCore"],
+            dependencies: [/*"TKCore"*/],
             swiftSettings: [
                             /*// Apply optimization settings for release builds
                             .unsafeFlags(["-O"], .when(configuration: .release)),
