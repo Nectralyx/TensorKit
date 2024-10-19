@@ -8,7 +8,6 @@
 
 #pragma once
 
-//#include <classImpl.h>
 #include <stdio.h>
 #include <cstring>  // For std::memcpy
 #include <iostream>
@@ -18,6 +17,8 @@
 #include <vector>
 #include <sys/sysctl.h>
 #include <limits>
+#include <arm_neon.h>
+#include <chrono>
 
 // Define the block size for tiling
 static int calculateBlockSize() {
@@ -51,7 +52,6 @@ static void vvadd(const float* a, const float* b, float* result, int size) {
     }
 }*/
 // Example using GCC intrinsics for non-temporal stores (for unaligned data)
-#include <arm_neon.h>
 
 /*
 static void vvadd(const float* a, const float* b, float* result, int size) {
@@ -67,7 +67,6 @@ static void vvadd(const float* a, const float* b, float* result, int size) {
     }
 }
 */
-#include <arm_neon.h>
 
 static void vvadd(const float* a, const float* b, float* result, int size) {
     int simdSize = size / 4 * 4;  // Process in chunks of 4 floats
@@ -101,7 +100,6 @@ static void matrixmultiply(const float* a, const float* b, const int m, const in
     for (int i = 0; i < m; i++) {
         for (int j = 0; j < p; j++) {
             for (int k = 0; k < n; k++) {
-                //result[i * m + j] += a[i * m + k] * b[k * n + j];
                 result[i * p + j] += a[i * n + k] * b[k * p + j];
             }
         }
@@ -136,7 +134,6 @@ static void matrixmultiplyD(const double* a, const double* b, const int m, const
     for (int i = 0; i < m; i++) {
         for (int j = 0; j < p; j++) {
             for (int k = 0; k < n; k++) {
-                //result[i * m + j] += a[i * m + k] * b[k * n + j];
                 result[i * p + j] += a[i * n + k] * b[k * p + j];
             }
         }
@@ -289,41 +286,6 @@ static void lowerTriangleD(int rows, int cols, double upper, double lower, doubl
         }
     }
 }
-
-/*
-float* matrixMultiply(const float* a, const float* b, const int* aShape, const int* bShape) {
-    // Matrix dimensions
-    int aRows = aShape[0];
-    int aCols = aShape[1];
-    int bRows = bShape[0];
-    int bCols = bShape[1];
-
-    // Ensure that the inner dimensions match (aCols == bRows)
-    if (aCols != bRows) {
-        std::cerr << "Matrix dimensions do not match for multiplication!" << std::endl;
-        return nullptr;  // Return null pointer on error
-    }
-
-    // Allocate memory for the result matrix (aRows x bCols)
-    float* result = new float[aRows * bCols];
-
-    // Initialize result matrix to zero
-    for (int i = 0; i < aRows * bCols; i++) {
-        result[i] = 0.0f;
-    }
-
-    // Perform matrix multiplication
-    for (int i = 0; i < aRows; ++i) {
-        for (int j = 0; j < bCols; ++j) {
-            for (int k = 0; k < aCols; ++k) {
-                result[i * bCols + j] += a[i * aCols + k] * b[k * bCols + j];
-            }
-        }
-    }
-
-    return result;
-}
-*/
 
 float* matrixMultiply(const float* a, const float* b, const int* aShape, const int* bShape) {
     int aRows = aShape[0];
@@ -518,145 +480,116 @@ static void softmaxD(const double* x, double* y, const int* shape, const int dim
     }
 }
 
-#include <chrono>
-/*
 static void softmaxJacobian(const float* x, float* y, const float* outputGrad, const int dimension, const int* shape, const int jSize, const int dataSize, const int blockStride) {
-    using namespace std::chrono;
     int numBlocks = dataSize / jSize;
-    float* slice = new float[jSize];
-    float* outputSlice = new float[jSize];
-    float* jacobian = new float[jSize * jSize];
-    auto start = high_resolution_clock::now();
-    #pragma omp parallel for
+
     for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
         int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
-        auto blockStartTime = high_resolution_clock::now(); // Start block timing
+
         for (int i = 0; i < jSize; i++) {
             int index = blockStartIndex + i * blockStride;
-            slice[i] = x[index];
-            outputSlice[i] = outputGrad[index];
-        }
-        
-        auto extractEndTime = high_resolution_clock::now(); // End time for data extraction
-        std::cout << "Data extraction time: " << duration_cast<microseconds>(extractEndTime - blockStartTime).count() << " µs\n";
-        
-        for (int i = 0; i < jSize; i++) {
-            for (int j = 0; j < jSize; j++) {
-                jacobian[i * jSize + j] = (i == j) ? slice[i] * (1 - slice[i]) : -(slice[i] * slice[j]);
-            }
-        }
-        
-        auto jacobianEndTime = high_resolution_clock::now(); // End time for Jacobian construction
-        std::cout << "Jacobian construction time: " << duration_cast<microseconds>(jacobianEndTime - extractEndTime).count() << " µs\n";
-        
-        int aShape[] = {jSize, jSize};
-        int bShape[] = {jSize, 1};
-        float* output = matrixMultiply(jacobian, outputSlice, aShape, bShape);
-        auto matrixMultEndTime = high_resolution_clock::now(); // End time for matrix multiplication
-        std::cout << "Matrix multiplication time: " << duration_cast<microseconds>(matrixMultEndTime - jacobianEndTime).count() << " µs\n";
-        for (int i = 0; i < jSize; i++) {
-            int index = blockStartIndex + i * blockStride;
-            y[index] = output[i];
-        }
-        
-        auto writeEndTime = high_resolution_clock::now(); // End time for writing back results
-        std::cout << "Write back time: " << duration_cast<microseconds>(writeEndTime - matrixMultEndTime).count() << " µs\n";
+            float weighted_sum = 0.0f;
 
-        // Total time for block
-        std::cout << "Total time for block " << blockIndex << ": " << duration_cast<microseconds>(writeEndTime - blockStartTime).count() << " µs\n";
-    }
-    auto end = high_resolution_clock::now();
-    std::cout << "Total time for function: " << duration_cast<milliseconds>(end - start).count() << " ms\n";
-    delete[] slice;
-    delete[] outputSlice;
-    delete[] jacobian;
-}
-*/
+            // Initialize NEON vectors for summing partial products
+            float32x4_t sum_vec1 = vdupq_n_f32(0.0f);  // First group of 4 elements
+            float32x4_t sum_vec2 = vdupq_n_f32(0.0f);  // Second group of 4 elements
+            float32x4_t sum_vec3 = vdupq_n_f32(0.0f);  // Third group of 4 elements
+            float32x4_t sum_vec4 = vdupq_n_f32(0.0f);  // Fourth group of 4 elements
 
-static void softmaxJacobian(const float* x, float* y, const float* outputGrad, const int dimension, const int* shape, const int jSize, const int dataSize, const int blockStride) {
-    using namespace std::chrono;
-    
-    int numBlocks = dataSize / jSize;
-    
-    // Allocate memory once outside the loop
-    float* jacobian = new float[jSize * jSize];
-    
-    auto start = high_resolution_clock::now();
-    
-    // Parallelize over blocks, and use thread-private arrays for slices
-    #pragma omp parallel
-    {
-        float* slice = new float[jSize];
-        float* outputSlice = new float[jSize];
-        
-        #pragma omp for
-        for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
-            int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
-            
-            // Efficiently extract data for the current block
-            for (int i = 0; i < jSize; i++) {
-                int index = blockStartIndex + i * blockStride;
-                slice[i] = x[index];
-                outputSlice[i] = outputGrad[index];
+            // Compute the dot product for 8 elements at a time
+            int j = 0;
+            for (; j <= jSize - 16; j += 16) {
+                int idx1 = blockStartIndex + j * blockStride;
+                int idx2 = blockStartIndex + (j + 4) * blockStride;
+                int idx3 = blockStartIndex + (j + 8) * blockStride;
+                int idx4 = blockStartIndex + (j + 12) * blockStride;
+
+                // Load 8 consecutive floats from x and outputGrad (split into four 4-element vectors)
+                float32x4_t x_vec1 = vld1q_f32(&x[idx1]);
+                float32x4_t grad_vec1 = vld1q_f32(&outputGrad[idx1]);
+                float32x4_t x_vec2 = vld1q_f32(&x[idx2]);
+                float32x4_t grad_vec2 = vld1q_f32(&outputGrad[idx2]);
+                float32x4_t x_vec3 = vld1q_f32(&x[idx3]);
+                float32x4_t grad_vec3 = vld1q_f32(&outputGrad[idx3]);
+                float32x4_t x_vec4 = vld1q_f32(&x[idx4]);
+                float32x4_t grad_vec4 = vld1q_f32(&outputGrad[idx4]);
+
+                // Multiply x and outputGrad element-wise for both sets
+                sum_vec1 = vfmaq_f32(sum_vec1, x_vec1, grad_vec1);
+                sum_vec2 = vfmaq_f32(sum_vec2, x_vec2, grad_vec2);
+                sum_vec3 = vfmaq_f32(sum_vec3, x_vec3, grad_vec3);
+                sum_vec4 = vfmaq_f32(sum_vec4, x_vec4, grad_vec4);
             }
-            
-            // Construct the Jacobian matrix (optimize for diagonal and off-diagonal)
-            for (int i = 0; i < jSize; i++) {
-                for (int j = 0; j < jSize; j++) {
-                    jacobian[i * jSize + j] = (i == j) ? slice[i] * (1 - slice[i]) : -(slice[i] * slice[j]);
-                }
+
+            // Horizontal add for both vectors
+            weighted_sum = vaddvq_f32(sum_vec1) + vaddvq_f32(sum_vec2) + vaddvq_f32(sum_vec3) + vaddvq_f32(sum_vec4);  // Reduction of all lanes
+
+            // Handle remaining elements (if jSize isn't divisible by 16)
+            for (; j < jSize; j++) {
+                int idx = blockStartIndex + j * blockStride;
+                weighted_sum += x[idx] * outputGrad[idx];
             }
-            
-            // Perform matrix-vector multiplication (Jacobian * outputSlice)
-            for (int i = 0; i < jSize; i++) {
-                float sum = 0.0f;
-                for (int j = 0; j < jSize; j++) {
-                    sum += jacobian[i * jSize + j] * outputSlice[j];
-                }
-                int index = blockStartIndex + i * blockStride;
-                y[index] = sum;  // Write the result back
-            }
+
+            // Compute the gradient update
+            float grad_update = outputGrad[index] - weighted_sum;
+            y[index] = x[index] * grad_update;
         }
-        
-        // Cleanup thread-local memory
-        delete[] slice;
-        delete[] outputSlice;
     }
-    
-    auto end = high_resolution_clock::now();
-    std::cout << "Total time for function: " << duration_cast<milliseconds>(end - start).count() << " ms\n";
-    
-    // Cleanup
-    delete[] jacobian;
 }
 
 static void softmaxJacobianD(const double* x, double* y, const double* outputGrad, const int dimension, const int* shape, const int jSize, const int dataSize, const int blockStride) {
     int numBlocks = dataSize / jSize;
+    
     for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
         int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
-        
-        double* slice = new double[jSize];
-        double* outputSlice = new double[jSize];
-        
+
         for (int i = 0; i < jSize; i++) {
             int index = blockStartIndex + i * blockStride;
-            slice[i] = x[index];
-            outputSlice[i] = outputGrad[index];
-        }
-        
-        double* jacobian = new double[jSize * jSize];
-        
-        for (int i = 0; i < jSize; i++) {
-            for (int j = 0; j < jSize; j++) {
-                jacobian[i * jSize + j] = (i == j) ? slice[i] * (1 - slice[i]) : -(slice[i] * slice[j]);
+            double weighted_sum = 0.0;
+
+            // Initialize NEON vectors for summing partial products
+            float64x2_t sum_vec1 = vdupq_n_f64(0.0);  // First group of 2 elements
+            float64x2_t sum_vec2 = vdupq_n_f64(0.0);  // Second group of 2 elements
+            float64x2_t sum_vec3 = vdupq_n_f64(0.0);  // Third group of 2 elements
+            float64x2_t sum_vec4 = vdupq_n_f64(0.0);  // Fourth group of 2 elements
+
+            // Compute the dot product for 8 elements at a time
+            int j = 0;
+            for (; j <= jSize - 8; j += 8) {
+                int idx1 = blockStartIndex + j * blockStride;
+                int idx2 = blockStartIndex + (j + 2) * blockStride;
+                int idx3 = blockStartIndex + (j + 4) * blockStride;
+                int idx4 = blockStartIndex + (j + 6) * blockStride;
+
+                // Load 8 consecutive floats from x and outputGrad (split into four 2-element vectors)
+                float64x2_t x_vec1 = vld1q_f64(&x[idx1]);
+                float64x2_t grad_vec1 = vld1q_f64(&outputGrad[idx1]);
+                float64x2_t x_vec2 = vld1q_f64(&x[idx2]);
+                float64x2_t grad_vec2 = vld1q_f64(&outputGrad[idx2]);
+                float64x2_t x_vec3 = vld1q_f64(&x[idx3]);
+                float64x2_t grad_vec3 = vld1q_f64(&outputGrad[idx3]);
+                float64x2_t x_vec4 = vld1q_f64(&x[idx4]);
+                float64x2_t grad_vec4 = vld1q_f64(&outputGrad[idx4]);
+
+                // Multiply x and outputGrad element-wise for both sets
+                sum_vec1 = vfmaq_f64(sum_vec1, x_vec1, grad_vec1);
+                sum_vec2 = vfmaq_f64(sum_vec2, x_vec2, grad_vec2);
+                sum_vec3 = vfmaq_f64(sum_vec3, x_vec3, grad_vec3);
+                sum_vec4 = vfmaq_f64(sum_vec4, x_vec4, grad_vec4);
             }
-        }
-        int aShape[] = {jSize, jSize};
-        int bShape[] = {jSize, 1};
-        double* output = matrixMultiplyD(jacobian, outputSlice, aShape, bShape);
-        for (int i = 0; i < jSize; i++) {
-            int index = blockStartIndex + i * blockStride;
-            y[index] = output[i];
+
+            // Horizontal add for both vectors
+            weighted_sum = vaddvq_f64(sum_vec1) + vaddvq_f64(sum_vec2) + vaddvq_f64(sum_vec3) + vaddvq_f64(sum_vec4);  // Reduction of all lanes
+
+            // Handle remaining elements (if jSize isn't divisible by 8)
+            for (; j < jSize; j++) {
+                int idx = blockStartIndex + j * blockStride;
+                weighted_sum += x[idx] * outputGrad[idx];
+            }
+
+            // Compute the gradient update
+            float grad_update = outputGrad[index] - weighted_sum;
+            y[index] = x[index] * grad_update;
         }
     }
 }
@@ -735,22 +668,6 @@ int ravelIndex(const int* index, const int* strides, const int shapeCount) {
     }
     return flatIndex;
 }
-/*
-static void permute(const float* data, const float* grad, float* result, float* gresult, const int* shape, const int* order, const int* oldStrides, const int* newStrides, const int dataSize, const int shapeCount) {
-    #pragma omp parallel for
-    for (int i = 0; i < dataSize; i++) {
-        const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
-        int* newIndex = new int[shapeCount];
-        for (int j = 0; j < shapeCount; j++) {
-            newIndex[j] = originalIndex[order[j]];
-        }
-        const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
-        result[newFlatIndex] = data[i];
-        gresult[newFlatIndex] = grad[i];
-        delete[] newIndex;
-    }
-}
-*/
 
 static void permute(const float* data, const float* grad, float* result, float* gresult,
                     const int* shape, const int* order, const int* oldStrides,
@@ -813,7 +730,7 @@ static void permuteD(const double* data, const double* grad, double* result, dou
 
 static void permuteNoGrad(const float* data, float* result, const int* shape, const int* order, const int* oldStrides, const int* newStrides, const int dataSize, const int shapeCount) {
     // Divide dataSize into blocks
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(dynamic)
     for (int blockStart = 0; blockStart < dataSize; blockStart += BLOCK_SIZE) {
         // Process a block of size BLOCK_SIZE, or the remainder at the end
         int blockEnd = std::min(blockStart + BLOCK_SIZE, dataSize);

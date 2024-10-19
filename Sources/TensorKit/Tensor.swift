@@ -578,10 +578,10 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
             guard parent.gradient != nil else {
                 continue
             }
-            //let t1 = CFAbsoluteTimeGetCurrent()
+            let t1 = CFAbsoluteTimeGetCurrent()
             let localGradients = local(self)
-            //let t2 = CFAbsoluteTimeGetCurrent()
-            //print("Grad Calc at \(parent.operation ?? "Leaf") From Child \(operation!): \(t2 - t1)")
+            let t2 = CFAbsoluteTimeGetCurrent()
+            print("Grad Calc at \(operation ?? "Leaf"): \(t2 - t1)")
             parent.backward(localGradients, printSteps: printSteps)
         }
         if parents.count != 0 {
@@ -590,100 +590,6 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
     }
 }
 
-/*@inlinable
-func repeatArray<T: TensorType>(_ array: [T], count: Int) -> [T] {
-    // Calculate the total length of the resulting array
-    let repeatedLength = array.count * count
-    if T.self == Float.self {
-        // Create an output array with the required length, initialized to zero
-        var result = [Float](repeating: 0, count: repeatedLength)
-        
-        // Use unsafe mutable buffer pointers for efficient copying
-        result.withUnsafeMutableBufferPointer { resultPointer in
-            // Get a pointer to the start of the result buffer
-            //let resultBase = resultPointer.baseAddress!
-            guard let resultBase = resultPointer.baseAddress else {
-                fatalError("Result base address is nil")
-            }
-            // Copy the original array into the result buffer for the first time
-            array.withUnsafeBufferPointer { arrayPointer in
-                // Get a pointer to the start of the array buffer
-                guard let arrayBase = arrayPointer.baseAddress else {
-                    fatalError("Array base address is nil")
-                }
-                // Copy the original array into the result buffer
-                vDSP_mmov(arrayBase as! UnsafePointer<Float>, resultBase, vDSP_Length(array.count), 1, vDSP_Length(array.count), 1)
-                // Repeat the copy operation using exponential growth
-                var currentLength = array.count
-                while currentLength < repeatedLength {
-                    // Double the size of copied elements each time
-                    let remainingLength = min(currentLength, repeatedLength - currentLength)
-                    vDSP_mmov(resultBase, resultBase + currentLength, vDSP_Length(remainingLength), 1, vDSP_Length(remainingLength), 1)
-                    currentLength += remainingLength
-                }
-            }
-        }
-        return result as! [T]
-    } else if T.self == Double.self {
-        // Create an output array with the required length, initialized to zero
-        var result = [Double](repeating: 0, count: repeatedLength)
-        
-        // Use unsafe mutable buffer pointers for efficient copying
-        result.withUnsafeMutableBufferPointer { resultPointer in
-            // Get a pointer to the start of the result buffer
-            let resultBase = resultPointer.baseAddress!
-            
-            // Copy the original array into the result buffer for the first time
-            array.withUnsafeBufferPointer { arrayPointer in
-                // Get a pointer to the start of the array buffer
-                let arrayBase = arrayPointer.baseAddress!
-                
-                // Copy the original array into the result buffer
-                vDSP_mmovD(arrayBase as! UnsafePointer<Double>, resultBase, vDSP_Length(array.count), 1, vDSP_Length(array.count), 1)
-                
-                // Repeat the copy operation using exponential growth
-                var currentLength = array.count
-                while currentLength < repeatedLength {
-                    // Double the size of copied elements each time
-                    let remainingLength = min(currentLength, repeatedLength - currentLength)
-                    vDSP_mmovD(resultBase, resultBase + currentLength, vDSP_Length(remainingLength), 1, vDSP_Length(remainingLength), 1)
-                    currentLength += remainingLength
-                }
-            }
-        }
-        
-        return result as! [T]
-    } else {
-        // Create an output array with the required length, initialized to zero
-        var result = [Float](repeating: 0, count: repeatedLength)
-        
-        // Use unsafe mutable buffer pointers for efficient copying
-        result.withUnsafeMutableBufferPointer { resultPointer in
-            // Get a pointer to the start of the result buffer
-            let resultBase = resultPointer.baseAddress!
-            
-            // Copy the original array into the result buffer for the first time
-            array.map{ Float($0) }.withUnsafeBufferPointer { arrayPointer in
-                // Get a pointer to the start of the array buffer
-                let arrayBase = arrayPointer.baseAddress!
-                
-                // Copy the original array into the result buffer
-                vDSP_mmov(arrayBase, resultBase, vDSP_Length(array.count), 1, vDSP_Length(array.count), 1)
-                
-                // Repeat the copy operation using exponential growth
-                var currentLength = array.count
-                while currentLength < repeatedLength {
-                    // Double the size of copied elements each time
-                    let remainingLength = min(currentLength, repeatedLength - currentLength)
-                    vDSP_mmov(resultBase, resultBase + currentLength, vDSP_Length(remainingLength), 1, vDSP_Length(remainingLength), 1)
-                    currentLength += remainingLength
-                }
-            }
-        }
-        
-        return result.map { T($0) }
-    }
-}*/
 @inlinable
 public func upperTriangle<T: TensorType>(rows: Int, cols: Int, upper: T, lower: T) -> [T] {
     var result = [T](repeating: 0, count: rows * cols)
@@ -846,7 +752,40 @@ public func sum<T: TensorType>(_ input: [T], shape: [Int], along: Int) -> [T] {
     // Calculate the stride and number of blocks for the specified dimension
     let numBlocks = input.count / dimSize
     let blockStride = shape.dropFirst(along + 1).reduce(1, *)
-
+    if T.self == Float.self {
+        input.withUnsafeBufferPointer{ iBuffer in
+            summedValues.withUnsafeMutableBufferPointer{ yBuffer in
+                shape.map{ Int32($0) }.withUnsafeBufferPointer{ sBuffer in
+                    TKCore.sum(
+                        iBuffer.baseAddress! as? UnsafePointer<Float>,
+                        Int32(along),
+                        yBuffer.baseAddress! as? UnsafeMutablePointer<Float>,
+                        sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                        Int32(0),
+                        Int32(numBlocks),
+                        Int32(blockStride)
+                    )
+                }
+            }
+        }
+    } else if T.self == Double.self {
+        input.withUnsafeBufferPointer{ iBuffer in
+            summedValues.withUnsafeMutableBufferPointer{ yBuffer in
+                shape.map{ Int32($0) }.withUnsafeBufferPointer{ sBuffer in
+                    TKCore.sumD(
+                        iBuffer.baseAddress! as? UnsafePointer<Double>,
+                        Int32(along),
+                        yBuffer.baseAddress! as? UnsafeMutablePointer<Double>,
+                        sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                        Int32(0),
+                        Int32(numBlocks),
+                        Int32(blockStride)
+                    )
+                }
+            }
+        }
+    }
+/*
     // Perform the summation along the specified dimension
     for blockIndex in 0..<numBlocks {
         // Compute the starting index for this block
@@ -856,7 +795,7 @@ public func sum<T: TensorType>(_ input: [T], shape: [Int], along: Int) -> [T] {
             let index = blockStartIndex + j * blockStride
             summedValues[blockIndex] += input[index]
         }
-    }
+    }*/
 
     return summedValues
 }

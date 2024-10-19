@@ -15,15 +15,18 @@ import Accelerate
 
 @usableFromInline
 internal func softmaxJacobian<T: TensorType>(_ y: Tensor<T>, outputGrad: [T], _ dimension: Int) -> [T] {
+    let t1o = CFAbsoluteTimeGetCurrent()
     let jSize = y.shape[dimension]
     var outputs = [T](repeating: 0, count: outputGrad.count)
     let blockStride = y.shape.dropFirst(dimension + 1).reduce(1, *)
     if T.self == Float.self {
-        let t1 = CFAbsoluteTimeGetCurrent()
+        var t1 = CFAbsoluteTimeGetCurrent()
+        var t2 = CFAbsoluteTimeGetCurrent()
         y.data.withUnsafeBufferPointer{ xBuffer in
             outputGrad.withUnsafeBufferPointer{ oBuffer in
                 outputs.withUnsafeMutableBufferPointer{ yBuffer in
                     y.shape.withUnsafeBufferPointer{ sBuffer in
+                        t1 = CFAbsoluteTimeGetCurrent()
                         softmaxJacobian(
                             xBuffer.baseAddress! as? UnsafePointer<Float>,
                             yBuffer.baseAddress! as? UnsafeMutablePointer<Float>,
@@ -34,12 +37,13 @@ internal func softmaxJacobian<T: TensorType>(_ y: Tensor<T>, outputGrad: [T], _ 
                             Int32(y.dataSize),
                             Int32(blockStride)
                         )
+                        t2 = CFAbsoluteTimeGetCurrent()
                     }
                 }
             }
         }
-        let t2 = CFAbsoluteTimeGetCurrent()
-        print("Softmax Jacobian took \(t2 - t1) seconds.")
+        let t2o = CFAbsoluteTimeGetCurrent()
+        print("Softmax C++ function took \(t2 - t1) seconds of the total function time: \(t2o - t1o) seconds")
     } else if T.self == Double.self {
         y.data.withUnsafeBufferPointer{ xBuffer in
             outputGrad.withUnsafeBufferPointer{ oBuffer in
