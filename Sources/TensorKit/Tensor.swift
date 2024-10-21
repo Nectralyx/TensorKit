@@ -321,9 +321,6 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
             return self
         }
         
-        
-        
-        
         var newDimensions = shape
         var mainCandidate = newDimensions
         while mainCandidate.count < targetDimensions.count {
@@ -357,7 +354,7 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
             }
         }
         let result = Tensor(broadcastedData, shape: targetDimensions, calculate_grad: gradient != nil)
-        result.operation = "<->"
+        result.operation = "Expand"
         result.parents = [
             (self, { v in TensorKit.sum(v.gradient!, shape: v.shape, along: gradientMap)})
         ]
@@ -559,6 +556,30 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
         ]
         output.operation = "Permute: \(order)"
         return output
+    }
+    
+    
+    @inlinable
+    public func squeeze() -> Tensor {
+        let result = Tensor(data, shape: self.shape.filter{ $0 != 1 }, calculate_grad: gradient != nil)
+        result.parents = [
+            (self, { v in v.gradient! })
+        ]
+        return result
+    }
+    
+    @inlinable
+    public func squeeze(_ dimension: Int) -> Tensor {
+        guard shape[dimension] == 1 else {
+            fatalError("Cannot squeeze along dimension \(dimension): dimension is not 1")
+        }
+        var newShape = shape
+        newShape.remove(at: dimension)
+        let result = Tensor(data, shape: newShape, calculate_grad: gradient != nil)
+        result.parents = [
+            (self, { v in v.gradient! })
+        ]
+        return result
     }
     
     @inlinable
@@ -1239,7 +1260,7 @@ public func transpose<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
 @inlinable
 public func add<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
     guard x.count == y.count else {
-        fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
+        fatalError("Mismatching inputs to add function: \(x.count) & \(y.count)")
     }
     let result = x.count
     if T.self == Float.self {

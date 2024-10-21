@@ -480,6 +480,27 @@ static void softmaxD(const double* x, double* y, const int* shape, const int dim
     }
 }
 
+float32_t sum_float16x8_to_float32(float16x8_t vec) {
+    // Split float16x8_t into two float16x4_t
+    float16x4_t low = vget_low_f16(vec);
+    float16x4_t high = vget_high_f16(vec);
+
+    // Sum both halves pairwise: result is two float16x4_t vectors
+    float16x4_t sum1 = vadd_f16(low, high); // Add the lower 4 and upper 4 values
+
+    // Pairwise add within each float16x4_t
+    sum1 = vpadd_f16(sum1, sum1); // Now we have [x1 + x2, x3 + x4, x5 + x6, x7 + x8]
+
+    // Final pairwise addition to reduce it to a single value
+    float16x4_t sum2 = vpadd_f16(sum1, sum1); // Now [sum]
+
+    // Convert the final sum (float16) to float32
+    float32x4_t result_f32 = vcvt_f32_f16(sum2);
+
+    // Return the first lane as float32 scalar
+    return vgetq_lane_f32(result_f32, 0);
+}
+
 static void softmaxJacobian(const float* x, float* y, const float* outputGrad, const int dimension, const int* shape, const int jSize, const int dataSize, const int blockStride) {
     int numBlocks = dataSize / jSize;
 
@@ -491,20 +512,24 @@ static void softmaxJacobian(const float* x, float* y, const float* outputGrad, c
             float weighted_sum = 0.0f;
 
             // Initialize NEON vectors for summing partial products
-            float32x4_t sum_vec1 = vdupq_n_f32(0.0f);  // First group of 4 elements
-            float32x4_t sum_vec2 = vdupq_n_f32(0.0f);  // Second group of 4 elements
-            float32x4_t sum_vec3 = vdupq_n_f32(0.0f);  // Third group of 4 elements
-            float32x4_t sum_vec4 = vdupq_n_f32(0.0f);  // Fourth group of 4 elements
+            float16x8_t sum_vec1 = vdupq_n_f16(0.0f);  // First group of 4 elements
+            float16x8_t sum_vec2 = vdupq_n_f16(0.0f);  // Second group of 4 elements
+            float16x8_t sum_vec3 = vdupq_n_f16(0.0f);  // Third group of 4 elements
+            float16x8_t sum_vec4 = vdupq_n_f16(0.0f);  // Fourth group of 4 elements
 
-            // Compute the dot product for 8 elements at a time
+            // Compute the dot product for 32 elements at a time
             int j = 0;
-            for (; j <= jSize - 16; j += 16) {
+            for (; j <= jSize - 32; j += 32) {
                 int idx1 = blockStartIndex + j * blockStride;
                 int idx2 = blockStartIndex + (j + 4) * blockStride;
                 int idx3 = blockStartIndex + (j + 8) * blockStride;
                 int idx4 = blockStartIndex + (j + 12) * blockStride;
+                int idx5 = blockStartIndex + (j + 16) * blockStride;
+                int idx6 = blockStartIndex + (j + 20) * blockStride;
+                int idx7 = blockStartIndex + (j + 24) * blockStride;
+                int idx8 = blockStartIndex + (j + 28) * blockStride;
 
-                // Load 8 consecutive floats from x and outputGrad (split into four 4-element vectors)
+                // Load 16 consecutive floats from x and outputGrad (split into four 8-element vectors)
                 float32x4_t x_vec1 = vld1q_f32(&x[idx1]);
                 float32x4_t grad_vec1 = vld1q_f32(&outputGrad[idx1]);
                 float32x4_t x_vec2 = vld1q_f32(&x[idx2]);
@@ -513,16 +538,50 @@ static void softmaxJacobian(const float* x, float* y, const float* outputGrad, c
                 float32x4_t grad_vec3 = vld1q_f32(&outputGrad[idx3]);
                 float32x4_t x_vec4 = vld1q_f32(&x[idx4]);
                 float32x4_t grad_vec4 = vld1q_f32(&outputGrad[idx4]);
+                float32x4_t x_vec5 = vld1q_f32(&x[idx5]);
+                float32x4_t grad_vec5 = vld1q_f32(&outputGrad[idx5]);
+                float32x4_t x_vec6 = vld1q_f32(&x[idx6]);
+                float32x4_t grad_vec6 = vld1q_f32(&outputGrad[idx6]);
+                float32x4_t x_vec7 = vld1q_f32(&x[idx7]);
+                float32x4_t grad_vec7 = vld1q_f32(&outputGrad[idx7]);
+                float32x4_t x_vec8 = vld1q_f32(&x[idx8]);
+                float32x4_t grad_vec8 = vld1q_f32(&outputGrad[idx8]);
+                
+                float16x4_t x_11 = vcvt_f16_f32(x_vec1);
+                float16x4_t grad_11 = vcvt_f16_f32(grad_vec1);
+                float16x4_t x_12 = vcvt_f16_f32(x_vec2);
+                float16x4_t grad_12 = vcvt_f16_f32(grad_vec2);
+                float16x4_t x_21 = vcvt_f16_f32(x_vec3);
+                float16x4_t grad_21 = vcvt_f16_f32(grad_vec3);
+                float16x4_t x_22 = vcvt_f16_f32(x_vec4);
+                float16x4_t grad_22 = vcvt_f16_f32(grad_vec4);
+                float16x4_t x_31 = vcvt_f16_f32(x_vec5);
+                float16x4_t grad_31 = vcvt_f16_f32(grad_vec5);
+                float16x4_t x_32 = vcvt_f16_f32(x_vec6);
+                float16x4_t grad_32 = vcvt_f16_f32(grad_vec6);
+                float16x4_t x_41 = vcvt_f16_f32(x_vec7);
+                float16x4_t grad_41 = vcvt_f16_f32(grad_vec7);
+                float16x4_t x_42 = vcvt_f16_f32(x_vec8);
+                float16x4_t grad_42 = vcvt_f16_f32(grad_vec8);
+                
+                float16x8_t a_vec1 = vcombine_f16(x_11, x_12);
+                float16x8_t grade_vec1 = vcombine_f16(grad_11, grad_22);
+                float16x8_t a_vec2 = vcombine_f16(x_21, x_22);
+                float16x8_t grade_vec2 = vcombine_f16(grad_21, grad_22);
+                float16x8_t a_vec3 = vcombine_f16(x_31, x_32);
+                float16x8_t grade_vec3 = vcombine_f16(grad_31, grad_32);
+                float16x8_t a_vec4 = vcombine_f16(x_41, x_42);
+                float16x8_t grade_vec4 = vcombine_f16(grad_41, grad_42);
 
                 // Multiply x and outputGrad element-wise for both sets
-                sum_vec1 = vfmaq_f32(sum_vec1, x_vec1, grad_vec1);
-                sum_vec2 = vfmaq_f32(sum_vec2, x_vec2, grad_vec2);
-                sum_vec3 = vfmaq_f32(sum_vec3, x_vec3, grad_vec3);
-                sum_vec4 = vfmaq_f32(sum_vec4, x_vec4, grad_vec4);
+                sum_vec1 = vfmaq_f32(sum_vec1, a_vec1, grade_vec1);
+                sum_vec2 = vfmaq_f32(sum_vec2, a_vec2, grade_vec2);
+                sum_vec3 = vfmaq_f32(sum_vec3, a_vec3, grade_vec3);
+                sum_vec4 = vfmaq_f32(sum_vec4, a_vec4, grade_vec4);
             }
 
             // Horizontal add for both vectors
-            weighted_sum = vaddvq_f32(sum_vec1) + vaddvq_f32(sum_vec2) + vaddvq_f32(sum_vec3) + vaddvq_f32(sum_vec4);  // Reduction of all lanes
+            weighted_sum = sum_float16x8_to_float32(sum_vec1) + sum_float16x8_to_float32(sum_vec2) + sum_float16x8_to_float32(sum_vec3) + sum_float16x8_to_float32(sum_vec4);  // Reduction of all lanes
 
             // Handle remaining elements (if jSize isn't divisible by 16)
             for (; j < jSize; j++) {

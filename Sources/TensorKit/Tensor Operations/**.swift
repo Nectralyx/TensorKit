@@ -16,7 +16,7 @@ public extension Tensor {
     @inlinable
     static func **(lhs: Tensor, rhs: Tensor) -> Tensor {
         guard lhs.shape.last! == rhs.shape.dropLast().last! else {
-            return Tensor(shape: [])
+            fatalError("Cannot perform matrix multiplication between tensors of shapes \(lhs.shape) and \(rhs.shape)")
        }
         
         var finalShape = mergeShapes(lhs.shape, rhs.shape)
