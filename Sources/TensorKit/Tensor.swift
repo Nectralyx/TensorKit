@@ -162,28 +162,10 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
         return data.makeIterator()
     }
 
-    
-    
     // Sum over a specified dimension
     @inlinable
     public func sum(along dimension: Int) -> Tensor {
-        /*// Ensure the dimension is valid
-        precondition(dimension < shape.count, "Invalid dimension for summation")
-        
-        var newDimensions = shape
-        newDimensions.remove(at: dimension)
-        
-        let stride = shape[dimension]
-        let newSize = data.count / stride
-        var summedData = [T](repeating: 0.0, count: newSize)
-        
-        for i in 0..<newSize {
-            for j in 0..<stride {
-                let index = i + j * newSize
-                summedData[i] += data[index]
-            }
-        } */
-        
+        guard shape[dimension] > 0 else { return self }
         var newDimensions = shape
         //newDimensions.remove(at: dimension)
         newDimensions[dimension] = 1
@@ -208,11 +190,11 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
             }
         }
         let result = Tensor(summedValues, shape: newDimensions, calculate_grad: gradient != nil)
-        result.operation = "sum"
+        result.operation = "Sum"
         result.parents = [
             (self, { v in
-                Tensor(v.gradient!, shape: v.shape).expand(to: self.shape).data
-                })
+                return Tensor(v.gradient!, shape: v.shape).expand(to: self.shape).data
+            })
         ]
         return result
     }
@@ -225,67 +207,35 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
         }
         return result
     }
-    /*public func sum() -> Tensor {
-        var result = self
-        for i in 0..<self.shape.count {
-            if result.shape[i] != 1 {
-                result = result.sum(along: i)
-            }
-        }
-        return result
-    }*/
+
     @inlinable
     public func sum() -> Tensor {
-        var result = self
-        result.shape = [1]
+        var result = Tensor(.empty, shape: [1], calculate_grad: gradient != nil)
         if T.self == Float.self {
+            var output: Float = 0
             data.withUnsafeBufferPointer { ibuffer in
-                result.data.withUnsafeMutableBufferPointer{ rbuffer in
-                    vDSP_sve(ibuffer.baseAddress! as! UnsafePointer<Float>, 1, rbuffer.baseAddress! as! UnsafeMutablePointer<Float>, vDSP_Length(dataSize))
-                }
+                vDSP_sve(ibuffer.baseAddress! as! UnsafePointer<Float>, 1, &output, vDSP_Length(dataSize))
             }
+            result.data = [output] as! [T]
             result.operation = "Sum"
             result.parents = [
-                (self, { v in Tensor(v.gradient!, shape: result.shape).expand(to: self.shape).data })
+                (self, { v in Tensor(v.gradient!, shape: v.shape).expand(to: self.shape).data })
             ]
-            return result
         } else if T.self == Double.self {
+            var output: Double = 0
             data.withUnsafeBufferPointer { ibuffer in
-                result.data.withUnsafeMutableBufferPointer{ rbuffer in
-                    vDSP_sveD(ibuffer.baseAddress! as! UnsafePointer<Double>, 1, rbuffer.baseAddress! as! UnsafeMutablePointer<Double>, vDSP_Length(dataSize))
-                }
+                vDSP_sveD(ibuffer.baseAddress! as! UnsafePointer<Double>, 1, &output, vDSP_Length(dataSize))
             }
+            result.data = [output] as! [T]
             result.operation = "Sum"
             result.parents = [
                 (self, { v in Tensor(v.gradient!, shape: result.shape).expand(to: self.shape).data })
             ]
-            return result
-        } else {
-            for i in 0..<self.shape.count {
-                if result.shape[i] != 1 {
-                    result = result.sum(along: i)
-                }
-            }
-            result.operation = "Sum"
-            result.parents = [
-                (self, { v in Tensor(v.gradient!, shape: result.shape).expand(to: self.shape).data })
-            ]
-            return result
         }
+        return result
     }
     
     // Reshape to new dimensions
-    /*func reshape(to newDimensions: [Int]) -> Tensor {
-        // Ensure the total number of elements is consistent
-        let totalElements = shape.reduce(1, *)
-        let newTotalElements = newDimensions.reduce(1, *)
-        if totalElements != newTotalElements {
-            print("Current Shape: \(shape) To: \(newDimensions) With Total amounts: Current: \(totalElements) To: \(newTotalElements)")
-        }
-        precondition(totalElements == newTotalElements, "Total elements must remain the same for reshape")
-        
-        return Tensor(data, shape: newDimensions)
-    }*/
     @inlinable
     public func reshape(to newDimensions: [Int]) -> Tensor {
         let totalElements = shape.reduce(1, *)
@@ -337,20 +287,42 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
         
         let gradientMap = newDimensions.enumerated().filter{ $0.element == 1 }.map{ $0.offset }
         var broadcastedData = data
-        
-        for i in (0..<newDimensions.count).reversed() {
+        let dimCount = newDimensions.count
+        for i in (0..<dimCount).reversed() {
             if newDimensions[i] == 1 && targetDimensions[i] > 1 {
-                if i == newDimensions.count - 1 {
-                    let returnCount = targetDimensions[i] - newDimensions[i]
-                    let count = dataSize / newDimensions.last!
-                    for row in 0..<count {
-                        broadcastedData.insert(contentsOf: Array(repeating: data[row], count: returnCount), at: row * targetDimensions[i])
+                let intermediateData = broadcastedData
+                var intermediateShape = newDimensions
+                intermediateShape[i] = targetDimensions[i]
+                var outputData = [T](repeating: 0, count: intermediateShape.reduce(1, *))
+                if T.self == Float.self {
+                    intermediateData.withUnsafeBufferPointer{ iBuffer in
+                        outputData.withUnsafeMutableBufferPointer{ oBuffer in
+                            expand_along_dimension(
+                                iBuffer.baseAddress! as? UnsafePointer<Float>,
+                                oBuffer.baseAddress! as? UnsafeMutablePointer<Float>,
+                                newDimensions.map{ Int32($0) },
+                                intermediateShape.map{ Int32($0) },
+                                Int32(newDimensions.count),
+                                Int32(i)
+                            )
+                        }
                     }
-                } else {
-                    let returnCount = targetDimensions[i] - newDimensions[i]
-                    broadcastedData.append(contentsOf: repeatArray(broadcastedData, count: returnCount))
-                    newDimensions[i] = targetDimensions[i]
+                } else if T.self == Double.self {
+                    intermediateData.withUnsafeBufferPointer{ iBuffer in
+                        outputData.withUnsafeMutableBufferPointer{ oBuffer in
+                            expand_along_dimensionD(
+                                iBuffer.baseAddress! as? UnsafePointer<Double>,
+                                oBuffer.baseAddress! as? UnsafeMutablePointer<Double>,
+                                newDimensions.map{ Int32($0) },
+                                intermediateShape.map{ Int32($0) },
+                                Int32(newDimensions.count),
+                                Int32(i)
+                            )
+                        }
+                    }
                 }
+                newDimensions[i] = targetDimensions[i]
+                broadcastedData = outputData
             }
         }
         let result = Tensor(broadcastedData, shape: targetDimensions, calculate_grad: gradient != nil)
@@ -363,15 +335,25 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
     
     @inlinable
     public func ravelIndex(_ indices: [Int]) -> Int {
-            // Convert multi-dimensional indices to a flat index
-            var flatIndex = 0
-            var multiplier = 1
-            for (i, index) in indices.reversed().enumerated() {
-                flatIndex += index * multiplier
-                multiplier *= shape[shape.count - 1 - i]
-            }
-            return flatIndex
+        // Convert multi-dimensional indices to a flat index
+        var flatIndex = 0
+        var multiplier = 1
+        for (i, index) in indices.reversed().enumerated() {
+            flatIndex += index * multiplier
+            multiplier *= shape[shape.count - 1 - i]
         }
+        return flatIndex
+    }
+    
+    @inlinable
+    public func mean(_ dimension: Int) -> Tensor {
+        return self.sum(along: dimension) / Tensor(T(shape[dimension]))
+    }
+    
+    @inlinable
+    public func mean() -> Tensor {
+        return self.sum() / Tensor(T(dataSize))
+    }
     
     @inlinable
     public func permute(_ order: [Int]) -> Tensor {
@@ -583,13 +565,32 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
     }
     
     @inlinable
+    public func select(_ indices: [[Int]]) -> Tensor {
+        var resultData = [T](repeating: 0, count: indices.count)
+        for (index, i) in indices.enumerated() {
+            resultData[index] = data[ravelIndex(i)]
+        }
+        let output = Tensor(resultData, shape: [indices.count], calculate_grad: self.gradient != nil)
+        output.parents = [
+            (self, { v in
+                var resultData = [T](repeating: 0, count: self.gradient!.count)
+                for (index, i) in indices.enumerated() {
+                    resultData[self.ravelIndex(i)] = v.gradient![index]
+                }
+                return resultData
+            })
+        ]
+        output.operation = "Select [\(indices.count)]"
+        return output
+    }
+    
+    @inlinable
     public func backward(_ grad: [T] = Array(repeating: 1.0, count: 0), printSteps: Bool = false) {
         if gradient != nil {
             // Check if the gradient sizes match
             let grad = grad.isEmpty ? [T](repeating: 1.0, count: gradient!.count) : grad
             // Accumulate gradients
             gradient = add(gradient!, grad)
-            //gradient = add(gradient, grad)
             if printSteps {
                 print("Grad At Operation: \(operation ?? "Leaf")")
                 print(gradient!)
@@ -599,10 +600,7 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
             guard parent.gradient != nil else {
                 continue
             }
-            let t1 = CFAbsoluteTimeGetCurrent()
             let localGradients = local(self)
-            let t2 = CFAbsoluteTimeGetCurrent()
-            print("Grad Calc at \(operation ?? "Leaf"): \(t2 - t1)")
             parent.backward(localGradients, printSteps: printSteps)
         }
         if parents.count != 0 {
@@ -1515,12 +1513,7 @@ public func concatenate<T: TensorType>(_ x: [Tensor<T>], dimension: Int) -> Tens
             }
         }
     }
-    //print("ParentMap: \(parentIndices)")
-    /*var gradIndices = [Int](repeating: 0, count: x.count)
-    var gradients = [[T]](repeating: [], count: 0)
-    for i in 0..<x.count {
-        gradients.append([T](repeating: 0, count: x[i].dataSize))
-    }*/
+    
     if hasGrad {
         for (outerIndex, i) in x.enumerated() {
             var originalShape = i.shape
@@ -1541,12 +1534,9 @@ public func concatenate<T: TensorType>(_ x: [Tensor<T>], dimension: Int) -> Tens
             parents.append(contentsOf: placement.parents)
         }
     }
-    //print("Result: \(result)")
     let output = Tensor<T>(result, shape: resultShape)
     output.parents = parents
     output.operation = "Concatenate"
     output.gradient = hasGrad ? gradResult : nil
-    //print("Final Output: ")
-    //print(output)
     return output
 }

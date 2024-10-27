@@ -107,9 +107,10 @@ func LeakyReLUDerivative<T: TensorType>(_ x: T, alpha: T = 0.01) -> T {
 }
 
 
-public protocol TensorType: Codable, BinaryFloatingPoint {}
+public protocol TensorType: Codable, BinaryFloatingPoint, Equatable {}
 extension Float: TensorType {}
 extension Double: TensorType {}
+
 //extension Float16: TensorType {}
 
 /*@usableFromInline

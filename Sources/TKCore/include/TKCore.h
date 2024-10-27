@@ -19,6 +19,7 @@
 #include <limits>
 #include <arm_neon.h>
 #include <chrono>
+#import "../cxxLibrary.cpp"
 
 // Define the block size for tiling
 static int calculateBlockSize() {
@@ -840,3 +841,54 @@ static void permuteNoGradD(const double* data, double* result, const int* shape,
         }
     }
 }
+
+static void expand_along_dimension(const float* input, float* output, const int* input_shape, const int* target_shape, const int ndim, const int expand_dim) {
+    // Calculate input size
+    int input_size = 1;
+    for (int i = 0; i < ndim; ++i) {
+        input_size *= input_shape[i];
+    }
+
+    // Calculate strides for input and output
+    int input_stride = 1;
+    int target_stride = 1;
+    for (int i = ndim - 1; i > expand_dim; --i) {
+        input_stride *= input_shape[i];
+        target_stride *= target_shape[i];
+    }
+    int repeats = target_shape[expand_dim] / input_shape[expand_dim];
+    
+    // Loop over input elements and copy them to the output multiple times
+    for (int i = 0; i < input_size; i += input_stride) {
+        // Copy the chunk input_stride times
+        for (int r = 0; r < repeats; ++r) {
+            std::memcpy(output + (i * repeats) + (r * target_stride), input + i, input_stride * sizeof(float));
+        }
+    }
+}
+
+static void expand_along_dimensionD(const double* input, double* output, const int* input_shape, const int* target_shape, const int ndim, const int expand_dim) {
+    // Calculate input size
+    int input_size = 1;
+    for (int i = 0; i < ndim; ++i) {
+        input_size *= input_shape[i];
+    }
+
+    // Calculate strides for input and output
+    int input_stride = 1;
+    int target_stride = 1;
+    for (int i = ndim - 1; i > expand_dim; --i) {
+        input_stride *= input_shape[i];
+        target_stride *= target_shape[i];
+    }
+    int repeats = target_shape[expand_dim] / input_shape[expand_dim];
+    
+    // Loop over input elements and copy them to the output multiple times
+    for (int i = 0; i < input_size; i += input_stride) {
+        // Copy the chunk input_stride times
+        for (int r = 0; r < repeats; ++r) {
+            std::memcpy(output + (i * repeats) + (r * target_stride), input + i, input_stride * sizeof(float));
+        }
+    }
+}
+
