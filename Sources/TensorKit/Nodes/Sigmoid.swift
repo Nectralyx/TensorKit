@@ -12,12 +12,16 @@
 import Foundation
 
 @inlinable
-public func Sigmoid<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
+public func Sigmoid<T: TensorComplex>(_ input: Tensor<T>) -> Tensor<T> {
     let result = Tensor<T>(.empty, shape: input.shape, calculate_grad: input.gradient != nil)
     result.data = input.data.map{ Sigmoid($0) }
     result.operation = "Sigmoid"
     result.parents = [
-        (input, { v in v.gradient!.map{ SigmoidDerivative($0) * $0 } })
+        
+        (input, { v in
+            let map = input.map{ SigmoidDerivative($0) }
+            return multiply(v.gradient!, map)
+        })
     ]
     return result
 }

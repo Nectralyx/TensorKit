@@ -14,19 +14,19 @@ import TKCore
 import Accelerate
 
 @usableFromInline
-internal func softmaxJacobian<T: TensorType>(_ y: Tensor<T>, outputGrad: [T], _ dimension: Int) -> [T] {
-    let t1o = CFAbsoluteTimeGetCurrent()
+internal func softmaxJacobian<T: TensorComplex>(_ y: Tensor<T>, outputGrad: [T], _ dimension: Int) -> [T] {
+    //let t1o = CFAbsoluteTimeGetCurrent()
     let jSize = y.shape[dimension]
     var outputs = [T](repeating: 0, count: outputGrad.count)
     let blockStride = y.shape.dropFirst(dimension + 1).reduce(1, *)
     if T.self == Float.self {
-        var t1 = CFAbsoluteTimeGetCurrent()
-        var t2 = CFAbsoluteTimeGetCurrent()
+        //var t1 = CFAbsoluteTimeGetCurrent()
+        //var t2 = CFAbsoluteTimeGetCurrent()
         y.data.withUnsafeBufferPointer{ xBuffer in
             outputGrad.withUnsafeBufferPointer{ oBuffer in
                 outputs.withUnsafeMutableBufferPointer{ yBuffer in
                     y.shape.withUnsafeBufferPointer{ sBuffer in
-                        t1 = CFAbsoluteTimeGetCurrent()
+                        //t1 = CFAbsoluteTimeGetCurrent()
                         softmaxJacobian(
                             xBuffer.baseAddress! as? UnsafePointer<Float>,
                             yBuffer.baseAddress! as? UnsafeMutablePointer<Float>,
@@ -37,13 +37,13 @@ internal func softmaxJacobian<T: TensorType>(_ y: Tensor<T>, outputGrad: [T], _ 
                             Int32(y.dataSize),
                             Int32(blockStride)
                         )
-                        t2 = CFAbsoluteTimeGetCurrent()
+                        //t2 = CFAbsoluteTimeGetCurrent()
                     }
                 }
             }
         }
-        let t2o = CFAbsoluteTimeGetCurrent()
-        print("Softmax C++ function took \(t2 - t1) seconds of the total function time: \(t2o - t1o) seconds")
+        //let t2o = CFAbsoluteTimeGetCurrent()
+        //print("Softmax C++ function took \(t2 - t1) seconds of the total function time: \(t2o - t1o) seconds")
     } else if T.self == Double.self {
         y.data.withUnsafeBufferPointer{ xBuffer in
             outputGrad.withUnsafeBufferPointer{ oBuffer in
@@ -64,11 +64,22 @@ internal func softmaxJacobian<T: TensorType>(_ y: Tensor<T>, outputGrad: [T], _ 
             }
         }
     }
+    //print("Returning SJ Grads: ")
+    //print(outputs)
+    
+    /*if outputs.allSatisfy{ $0 == 0 } {
+        for i in 0..<outputs.count {
+       // outputs[i] += T(Float.random(in: -1e-3...1e-3))
+        }
+        print("Grads Were All Zero. Applying random normalization: ")
+    }*/
+    
+    //print(outputs)
     return outputs
 }
-
+/*
 @inlinable
-public func Softmax<T: TensorType>(_ input: Tensor<T>, dimension: Int) -> Tensor<T> {
+public func Softmax<T: TensorComplex>(_ input: Tensor<T>, dimension: Int) -> Tensor<T> {
     // Ensure the dimension is valid
     precondition(dimension < input.shape.count, "Invalid dimension for softmax")
     
@@ -121,5 +132,19 @@ public func Softmax<T: TensorType>(_ input: Tensor<T>, dimension: Int) -> Tensor
             softmaxJacobian(result, outputGrad: v.gradient!, dimension)
         })
     ]
+    return result
+}*/
+
+@inlinable
+public func Softmax<T: TensorComplex>(_ x: Tensor<T>, dimension: Int) -> Tensor<T> {
+    let exp = exp(x - x.max(dimension).expand(to: x.shape))
+    let sum = exp.sum(along: dimension)
+    let result = exp / sum
+    result.parents = [
+        (x, { v in
+            softmaxJacobian(result, outputGrad: v.gradient!, dimension)
+        })
+    ]
+    result.operation = "Softmax New"
     return result
 }

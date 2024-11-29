@@ -13,20 +13,22 @@ import Foundation
 import Accelerate
 
 @inlinable
-public func ReLU<T: TensorType>(_ input: Tensor<T>, leak: T = 0) -> Tensor<T> {
+public func ReLU<T: TensorComplex>(_ input: Tensor<T>, leak: T = 0) -> Tensor<T> {
     let result = Tensor<T>(.empty, shape: input.shape, calculate_grad: input.gradient != nil)
     if leak == T(0) {
         result.data = input.data.map{ ReLU($0) }
         result.parents = [
             (input, { v in
-                v.gradient!.map{ ReLUDerivative($0) * $0 }
+                let map = input.data.map{ ReLUDerivative($0) }
+                return multiply(v.gradient!, map)
             })
         ]
     } else {
         result.data = input.data.map{ LeakyReLU($0, alpha: leak) }
         result.parents = [
             (input, { v in
-                v.gradient!.map{ LeakyReLUDerivative($0, alpha: leak) * $0 }
+                let map = input.data.map{ LeakyReLUDerivative($0, alpha: leak) }
+                return multiply(v.gradient!, map)
             })
         ]
     }

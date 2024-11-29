@@ -423,9 +423,9 @@ static void posEnc(float* x, const int d_model, const int positions) {
             float angle = pos / powf(10000.0f, (2.0f * (float)(i / 2)) / (float)d_model);
             // Apply sinf to even indices and cosf to odd indices
             if (i % 2 == 0) {
-                x[pos * d_model + i] = sinf(angle); // Apply sine to even indices
+                x[pos * d_model + i] += sinf(angle); // Apply sine to even indices
             } else {
-                x[pos * d_model + i] = cosf(angle); // Apply cosine to odd indices
+                x[pos * d_model + i] += cosf(angle); // Apply cosine to odd indices
             }
         }
     }
@@ -597,6 +597,53 @@ static void softmaxJacobian(const float* x, float* y, const float* outputGrad, c
     }
 }
 
+/*static void softmaxJacobian(const float* x, float* y, const float* outputGrad, const int dimension, const int* shape, const int jSize, const int dataSize, const int blockStride) {
+    int numBlocks = dataSize / jSize;
+
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        std::cout << "Block " << blockIndex << " : \n";
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * jSize) + (blockIndex % blockStride);
+
+        // Step 1: Find max value in the block to prevent overflow
+        float max_val = -std::numeric_limits<float>::infinity();
+        for (int i = 0; i < jSize; i++) {
+            int index = blockStartIndex + i * blockStride;
+            if (x[index] > max_val) {
+                max_val = x[index];
+            }
+        }
+        std::cout << " max_val: " << max_val << "\n";
+        // Step 2: Compute the sum of exponentials of (x - max_val)
+        float sum_exp = 0.0f;
+        for (int i = 0; i < jSize; i++) {
+            int index = blockStartIndex + i * blockStride;
+            sum_exp += expf(x[index] - max_val);
+        }
+        std::cout << " sum_exp: " << sum_exp << "\n";
+        // Step 3: Calculate softmax for each element in the block and the gradient
+        for (int i = 0; i < jSize; i++) {
+            std::cout << "  i: " << i << ": \n";
+            int index = blockStartIndex + i * blockStride;
+
+            // Softmax probability for this element
+            float softmax_prob = expf(x[index] - max_val) / sum_exp;
+            std::cout << "  softmax_prob: " << softmax_prob << "\n";
+            // Calculate weighted sum of softmax probabilities * output gradients
+            float weighted_sum = 0.0f;
+
+            for (int j = 0; j < jSize; j++) {
+                int idx = blockStartIndex + j * blockStride;
+                weighted_sum += softmax_prob * outputGrad[idx];
+            }
+            std::cout << "  weighted_sum: " << weighted_sum << "\n";
+            // Step 4: Compute the gradient update
+            float grad_update = outputGrad[index] - weighted_sum;
+            y[index] = softmax_prob * grad_update;
+            std::cout << "  update: " << softmax_prob << " * " << "(" << outputGrad[index] << " - " << weighted_sum << ")" << " = " << y[index] << "\n";
+        }
+    }
+}*/
+
 static void softmaxJacobianD(const double* x, double* y, const double* outputGrad, const int dimension, const int* shape, const int jSize, const int dataSize, const int blockStride) {
     int numBlocks = dataSize / jSize;
     
@@ -749,7 +796,7 @@ static void permute(const float* data, const float* grad, float* result, float* 
             for (int j = 0; j < shapeCount; j++) {
                 newIndex[j] = originalIndex[order[j]];
             }
-
+            delete[] originalIndex;
             // Compute the flattened index for the result array
             const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
 
@@ -777,7 +824,7 @@ static void permuteD(const double* data, const double* grad, double* result, dou
             for (int j = 0; j < shapeCount; j++) {
                 newIndex[j] = originalIndex[order[j]];
             }
-
+            delete[] originalIndex;
             // Compute the flattened index for the result array
             const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
 
@@ -797,7 +844,6 @@ static void permuteNoGrad(const float* data, float* result, const int* shape, co
         
         for (int i = blockStart; i < blockEnd; i++) {
             const int* originalIndex = unravelIndex(i, shape, shapeCount, oldStrides);
-
             // Preallocate newIndex once outside inner loop
             int newIndex[shapeCount];  // Use stack allocation for speed
 
@@ -805,7 +851,7 @@ static void permuteNoGrad(const float* data, float* result, const int* shape, co
             for (int j = 0; j < shapeCount; j++) {
                 newIndex[j] = originalIndex[order[j]];
             }
-
+            delete[] originalIndex;
             // Compute the flattened index for the result array
             const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
 
@@ -832,7 +878,7 @@ static void permuteNoGradD(const double* data, double* result, const int* shape,
             for (int j = 0; j < shapeCount; j++) {
                 newIndex[j] = originalIndex[order[j]];
             }
-
+            delete[] originalIndex;
             // Compute the flattened index for the result array
             const int newFlatIndex = ravelIndex(newIndex, newStrides, shapeCount);
 
@@ -887,8 +933,103 @@ static void expand_along_dimensionD(const double* input, double* output, const i
     for (int i = 0; i < input_size; i += input_stride) {
         // Copy the chunk input_stride times
         for (int r = 0; r < repeats; ++r) {
-            std::memcpy(output + (i * repeats) + (r * target_stride), input + i, input_stride * sizeof(float));
+            std::memcpy(output + (i * repeats) + (r * target_stride), input + i, input_stride * sizeof(double));
         }
     }
 }
 
+static void argmax(const float* x, const int* shape, const int dim, const int dimSize, const int numBlocks, const int blockStride, float* y) {
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * dimSize) + (blockIndex % blockStride);
+        
+        float max_val = -std::numeric_limits<float>::infinity();
+        int max_idx = 0;
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            if (x[index] > max_val) {
+                max_val = x[index];
+                max_idx = index;
+            }
+        }
+        
+        y[blockIndex] = max_idx;
+    }
+}
+
+static void argmaxD(const double* x, const int* shape, const int dim, const int dimSize, const int numBlocks, const int blockStride, double* y) {
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * dimSize) + (blockIndex % blockStride);
+        
+        double max_val = -std::numeric_limits<double>::infinity();
+        int max_idx = 0;
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            if (x[index] > max_val) {
+                max_val = x[index];
+                max_idx = index;
+            }
+        }
+        
+        y[blockIndex] = max_idx;
+    }
+}
+
+static void max(const float* x, const int* shape, const int dim, const int dimSize, const int numBlocks, const int blockStride, float* y) {
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * dimSize) + (blockIndex % blockStride);
+        
+        float max_val = -std::numeric_limits<float>::infinity();
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            if (x[index] > max_val) {
+                max_val = x[index];
+            }
+        }
+        y[blockIndex] = max_val;
+    }
+}
+
+static void maxD(const double* x, const int* shape, const int dim, const int dimSize, const int numBlocks, const int blockStride, double* y) {
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * dimSize) + (blockIndex % blockStride);
+        
+        double max_val = -std::numeric_limits<double>::infinity();
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            if (x[index] > max_val) {
+                max_val = x[index];
+            }
+        }
+        y[blockIndex] = max_val;
+    }
+}
+
+static void min(const float* x, const int* shape, const int dim, const int dimSize, const int numBlocks, const int blockStride, float* y) {
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * dimSize) + (blockIndex % blockStride);
+        
+        float min_val = std::numeric_limits<float>::infinity();
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            if (x[index] < min_val) {
+                min_val = x[index];
+            }
+        }
+        y[blockIndex] = min_val;
+    }
+}
+
+static void minD(const double* x, const int* shape, const int dim, const int dimSize, const int numBlocks, const int blockStride, double* y) {
+    for (int blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+        int blockStartIndex = (blockIndex / blockStride) * (blockStride * dimSize) + (blockIndex % blockStride);
+        
+        double min_val = std::numeric_limits<double>::infinity();
+        for (int j = 0; j < dimSize; j++) {
+            int index = blockStartIndex + j * blockStride;
+            if (x[index] < min_val) {
+                min_val = x[index];
+            }
+        }
+        y[blockIndex] = min_val;
+    }
+}

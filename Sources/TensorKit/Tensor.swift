@@ -24,18 +24,38 @@ public enum TensorInitialization: Codable {
     case empty
 }
 
-open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
+open class Tensor<T: TensorComplex>: Codable, CustomStringConvertible, Sequence, Hashable, Equatable {
+    public static func ==(lhs: Tensor, rhs: Tensor) -> Bool {
+        return lhs.shape == rhs.shape && lhs.data == rhs.data && lhs.gradient == rhs.gradient
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(shape)
+        hasher.combine(data)
+        hasher.combine(gradient)
+        hasher.combine(operation)
+    }
     public var description: String {
         return formatTensor(data, shape: shape)
     }
     public var shape: [Int] // Array to represent the shape of the tensor
     public var data: [T]
     public var operation: String? = nil
-    public var parents: [ (Tensor, (Tensor) -> [T])] = []
+    public var parents: [(Tensor, (Tensor) -> [T])] = []
     public var gradient: [T]?
     //var calculate_grad: Bool = false
     public var dataSize: Int {
         return shape.reduce(1, *)
+    }
+    @inlinable
+    public init(_ input: Tensor) {
+        self.shape = input.shape
+        self.data = input.data
+        self.gradient = input.gradient
+        self.operation = "Clone Of: \(input.operation)"
+        self.parents = [
+            (input, { v in v.gradient! })
+        ]
     }
     @inlinable
     public init(_ input: [[[T]]], calculate_grad: Bool = false) {
@@ -78,7 +98,10 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
             self.data = [T](repeating: scale, count: shape.reduce(1, *))
         case .xavier_glorot:
             let xavierScale = shape.count >= 2 ? sqrt(6.0 / Double(shape[shape.endIndex - 1] + shape[shape.endIndex - 2])) : sqrt(6.0 / Double(shape[shape.endIndex - 1] + 1))
+            let range = -xavierScale...xavierScale
             self.data = [T](repeating: T(Double.random(in: -xavierScale...xavierScale)), count: shape.reduce(1, *))
+            //self.data = [T](repeating: 1, count: shape.reduce(1, *))
+            self.data.map {$0 + T(Double.random(in: range))}
         case .he:
             let heScale = sqrt(6.0 / Double(shape[shape.endIndex - 2]))
             self.data = [T](repeating: T(Double.random(in: -heScale...heScale)), count: shape.reduce(1, *))
@@ -164,11 +187,14 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
 
     // Sum over a specified dimension
     @inlinable
-    public func sum(along dimension: Int) -> Tensor {
+    public func sum(along dimension: Int, keepDims: Bool = true) -> Tensor {
         guard shape[dimension] > 0 else { return self }
         var newDimensions = shape
-        //newDimensions.remove(at: dimension)
-        newDimensions[dimension] = 1
+        if keepDims {
+            newDimensions[dimension] = 1
+        } else {
+            newDimensions.remove(at: dimension)
+        }
         // Ensure the dimension is valid
         precondition(dimension < shape.count, "Invalid dimension for sum")
 
@@ -200,17 +226,17 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
     }
     
     @inlinable
-    public func sum(along: [Int]) -> Tensor {
+    public func sum(along: [Int], keepDims: Bool = true) -> Tensor {
         var result = self
         for i in along {
-            result = result.sum(along: i)
+            result = result.sum(along: i, keepDims: keepDims)
         }
         return result
     }
 
     @inlinable
-    public func sum() -> Tensor {
-        var result = Tensor(.empty, shape: [1], calculate_grad: gradient != nil)
+    public func sum(keepDims: Bool = true) -> Tensor {
+        var result = Tensor(.empty, shape: keepDims ? [Int](repeating: 1, count: shape.count) : [1], calculate_grad: gradient != nil)
         if T.self == Float.self {
             var output: Float = 0
             data.withUnsafeBufferPointer { ibuffer in
@@ -346,13 +372,53 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
     }
     
     @inlinable
-    public func mean(_ dimension: Int) -> Tensor {
-        return self.sum(along: dimension) / Tensor(T(shape[dimension]))
+    public func mean(_ dimension: Int, keepDims: Bool = true) -> Tensor {
+        let rhs = Tensor(T(shape[dimension]))
+        let output = self.sum(along: dimension, keepDims: keepDims) / rhs
+        output.operation = "Mean"
+        return output
     }
     
     @inlinable
-    public func mean() -> Tensor {
-        return self.sum() / Tensor(T(dataSize))
+    public func mean(_ dimensions: [Int], keepDims: Bool = true) -> Tensor {
+        var total = 1
+        for i in dimensions {
+            total *= shape[i]
+        }
+        let rhs = Tensor(T(total))
+        let output = self.sum(along: dimensions, keepDims: keepDims) / rhs
+        output.operation = "Mean"
+        return output
+    }
+    
+    @inlinable
+    public func mean(keepDims: Bool = true) -> Tensor {
+        let rhs = Tensor(T(dataSize))
+        let output = self.sum(keepDims: keepDims) / rhs
+        output.operation = "Mean"
+        return output
+    }
+    
+    @inlinable
+    public func variance(_ dimensions: [Int]) -> Tensor {
+        var total = 1
+        for i in dimensions {
+            total *= shape[i]
+        }
+        let N = Tensor(1.0 / T(total))
+        let subs = self - mean(dimensions)
+        let src = pow(subs, 2)
+        let srcShape = src.shape
+        let sum = src.sum(along: dimensions) * N
+        sum.parents = [
+            (self, { v in
+                let sumGrad = Tensor(multiply(v.gradient!, s: N.data[0]), shape: v.shape)
+                let powGrad = sumGrad.expand(to: srcShape)
+                return (powGrad * subs * Tensor(2)).data
+            })
+        ]
+        sum.operation = "Variance"
+        return sum
     }
     
     @inlinable
@@ -482,10 +548,21 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
                 for i in 0..<order.count {
                     inverseOrder[order[i]] = i
                 }
+                
+               /* var adjustedShape = v.shape
+                while adjustedShape.first == 1 && adjustedShape.count > order.count {
+                    adjustedShape.removeFirst()
+                }
+                if adjustedShape.count != order.count {
+                    fatalError("Order Does Not Match Shape. This error typically occurs from the transpose() function.")
+                }*/
+                
                 let gnewShape = order.map{ v.shape[$0] }
                 var result = [T](repeating: 0, count: v.dataSize)
                 let originalStrides = generateStrides(v.shape)
+                //print("NewShape: \(gnewShape) from: \(adjustedShape)")
                 let newStrides = generateStrides(gnewShape)
+                //print("new Strides: \(newStrides)")
                 if T.self == Float.self  {
                     result.withUnsafeMutableBufferPointer{ result in
                         originalStrides.map{ Int32($0) }.withUnsafeBufferPointer{ osBuffer in
@@ -493,6 +570,13 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
                                 v.gradient!.withUnsafeBufferPointer{ xBuffer in
                                     output.shape.map{ Int32($0) }.withUnsafeBufferPointer{ sBuffer in
                                         inverseOrder.map{ Int32($0) }.withUnsafeBufferPointer{ oBuffer in
+                                            /*print("VALUES")
+                                            print(result)
+                                            print(originalStrides)
+                                            print(newStrides)
+                                            print(Tensor(v.gradient!, shape: v.shape))
+                                            print(output.shape)
+                                            print(inverseOrder)*/
                                             TKCore.permuteNoGrad(
                                                 xBuffer.baseAddress! as? UnsafePointer<Float>,
                                                 result.baseAddress! as? UnsafeMutablePointer<Float>,
@@ -539,6 +623,25 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
         output.operation = "Permute: \(order)"
         return output
     }
+    /*
+    @inlinable
+    public func transpose(_ a: Int, _ b: Int) -> Tensor {
+        guard a < shape.count, b < shape.count, a != b else {
+            fatalError("Invalid indices \(a), \(b)")
+        }
+        var initialShape = shape
+        initialShape.remove(at: a)
+        initialShape.remove(at: b)
+        if a < b {
+            initialShape.insert(b, at: a)
+            initialShape.insert(a, at: b)
+        } else {
+            initialShape.insert(a, at: b)
+            initialShape.insert(b, at: a)
+        }
+        print("New Shape: \(initialShape)")
+        return self.permute(initialShape)
+    }*/
     
     
     @inlinable
@@ -547,6 +650,7 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
         result.parents = [
             (self, { v in v.gradient! })
         ]
+        result.operation = "Squeeze"
         return result
     }
     
@@ -561,11 +665,23 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
         result.parents = [
             (self, { v in v.gradient! })
         ]
+        result.operation = "Squeeze"
+        return result
+    }
+    
+    @inlinable
+    public func unsqueeze(_ dimension: Int) -> Tensor {
+        let result = Tensor(data, shape: shape.inserting(1, at: dimension), calculate_grad: gradient != nil)
+        result.parents = [
+            (self, { v in v.gradient! })
+        ]
+        result.operation = "Unsqueeze"
         return result
     }
     
     @inlinable
     public func select(_ indices: [[Int]]) -> Tensor {
+        print(data)
         var resultData = [T](repeating: 0, count: indices.count)
         for (index, i) in indices.enumerated() {
             resultData[index] = data[ravelIndex(i)]
@@ -585,32 +701,249 @@ open class Tensor<T: TensorType>: Codable, CustomStringConvertible, Sequence {
     }
     
     @inlinable
-    public func backward(_ grad: [T] = Array(repeating: 1.0, count: 0), printSteps: Bool = false) {
+    public func argmax(_ dim: Int) -> Tensor {
+        let strides = generateStrides(shape)
+        var outputShape = shape
+        outputShape.remove(at: dim)
+        outputShape.insert(1, at: dim)
+        let numBlocks = dataSize / shape[dim]
+        let blockStride = shape.dropFirst(dim + 1).reduce(1, *)
+        if T.self == Float.self {
+            var resultData = [Float](repeating: 0, count: numBlocks)
+            data.withUnsafeBufferPointer{ xBuffer in
+                shape.withUnsafeBufferPointer{ sBuffer in
+                    TKCore.argmax(
+                        xBuffer.baseAddress! as? UnsafePointer<Float>,
+                        sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                        Int32(dim),
+                        Int32(shape[dim]),
+                        Int32(numBlocks),
+                        Int32(blockStride),
+                        &resultData
+                    )
+                }
+            }
+            return Tensor(resultData as! [T], shape: outputShape)
+        } else if T.self == Double.self {
+            var resultData = [Double](repeating: 0, count: numBlocks)
+            data.withUnsafeBufferPointer{ xBuffer in
+                shape.withUnsafeBufferPointer{ sBuffer in
+                    TKCore.argmaxD(
+                        xBuffer.baseAddress! as? UnsafePointer<Double>,
+                        sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                        Int32(dim),
+                        Int32(shape[dim]),
+                        Int32(numBlocks),
+                        Int32(blockStride),
+                        &resultData
+                    )
+                }
+            }
+            return Tensor(resultData as! [T], shape: outputShape)
+        }
+        return Tensor(0.0)
+    }
+    
+    @inlinable
+    public func max(_ dim: Int) -> Tensor {
+        var resultShape = shape
+        resultShape.remove(at: dim)
+        resultShape.insert(1, at: dim)
+        let blockStride = shape.dropFirst(dim + 1).reduce(1, *)
+        let dimSize = shape[dim]
+        let numBlocks = dataSize / shape[dim]
+        if T.self == Float.self {
+            var resultData = [Float](repeating: 0, count: numBlocks)
+            data.withUnsafeBufferPointer{ xBuffer in
+                shape.withUnsafeBufferPointer{ sBuffer in
+                    TKCore.max(
+                        xBuffer.baseAddress! as? UnsafePointer<Float>,
+                        sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                        Int32(dim),
+                        Int32(dimSize),
+                        Int32(numBlocks),
+                        Int32(blockStride),
+                        &resultData
+                    )
+                }
+            }
+            return Tensor(resultData as! [T], shape: resultShape)
+        } else if T.self == Double.self {
+            var resultData = [Double](repeating: 0, count: numBlocks)
+            data.withUnsafeBufferPointer{ xBuffer in
+                shape.withUnsafeBufferPointer{ sBuffer in
+                    TKCore.maxD(
+                        xBuffer.baseAddress! as? UnsafePointer<Double>,
+                        sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                        Int32(dim),
+                        Int32(dimSize),
+                        Int32(numBlocks),
+                        Int32(blockStride),
+                        &resultData
+                    )
+                }
+            }
+            return Tensor(resultData as! [T], shape: resultShape)
+        }
+        return Tensor(0.0)
+    }
+    
+    @inlinable
+    public func min(_ dim: Int) -> Tensor {
+        var resultShape = shape
+        resultShape.remove(at: dim)
+        resultShape.insert(1, at: dim)
+        let blockStride = shape.dropFirst(dim + 1).reduce(1, *)
+        let dimSize = shape[dim]
+        let numBlocks = dataSize / shape[dim]
+        if T.self == Float.self {
+            var resultData = [Float](repeating: 0, count: numBlocks)
+            data.withUnsafeBufferPointer{ xBuffer in
+                shape.withUnsafeBufferPointer{ sBuffer in
+                    TKCore.min(
+                        xBuffer.baseAddress! as? UnsafePointer<Float>,
+                        sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                        Int32(dim),
+                        Int32(dimSize),
+                        Int32(numBlocks),
+                        Int32(blockStride),
+                        &resultData
+                    )
+                }
+            }
+            return Tensor(resultData as! [T], shape: resultShape)
+        } else if T.self == Double.self {
+            var resultData = [Double](repeating: 0, count: numBlocks)
+            data.withUnsafeBufferPointer{ xBuffer in
+                shape.withUnsafeBufferPointer{ sBuffer in
+                    TKCore.minD(
+                        xBuffer.baseAddress! as? UnsafePointer<Double>,
+                        sBuffer.baseAddress! as? UnsafePointer<Int32>,
+                        Int32(dim),
+                        Int32(dimSize),
+                        Int32(numBlocks),
+                        Int32(blockStride),
+                        &resultData
+                    )
+                }
+            }
+            return Tensor(resultData as! [T], shape: resultShape)
+        }
+        return Tensor(0.0)
+    }
+    
+    /*@inlinable
+    public func toDoublePrecision() -> Tensor<Double> {
+        guard T.self == Float.self else {
+            if T.self == Double.self {
+                return self as! Tensor<Double>
+            } else {
+                fatalError("This operation hasnt been implemented for \(T.self).")
+            }
+        }
+        
+        var outputData = [Double](repeating: 0, count: dataSize)
+        data.withUnsafeBufferPointer{ iBuffer in
+            outputData.withUnsafeMutableBufferPointer{ oBuffer in
+                vDSP_vspdp(
+                    iBuffer.baseAddress! as! UnsafePointer<Float>,
+                    1,
+                    oBuffer.baseAddress! as! UnsafeMutablePointer<Double>,
+                    1,
+                    vDSP_Length(dataSize)
+                )
+            }
+        }
+        let result = Tensor<Double>(outputData, shape: shape, calculate_grad: gradient != nil)
+        let inputCpy = result
+        result.operation = "Convert \(T.self) to Double"
+        result.parents = [
+            (self, { v in
+                
+                data.withUnsafeBufferPointer{ iBuffer in
+                    v.gradient!.withUnsafeMutableBufferPointer{ oBuffer in
+                        vDSP_vspdp(
+                            iBuffer.baseAddress! as! UnsafePointer<Float>,
+                            1,
+                            oBuffer.baseAddress! as! UnsafeMutablePointer<Double>,
+                            1,
+                            vDSP_Length(dataSize)
+                        )
+                    }
+                }
+            })
+        ]
+    }*/
+    @inlinable
+    public func clearGrad() {
         if gradient != nil {
+            if T.self == Float.self {
+                gradient!.withUnsafeMutableBufferPointer{ grad in
+                    vDSP_vclr(grad.baseAddress! as! UnsafeMutablePointer<Float>, 1, vDSP_Length(dataSize))
+                }
+            } else if T.self == Double.self {
+                gradient!.withUnsafeMutableBufferPointer{ grad in
+                    vDSP_vclrD(grad.baseAddress! as! UnsafeMutablePointer<Double>, 1, vDSP_Length(dataSize))
+                }
+            } else {
+                gradient = [T](repeating: 0, count: data.count)
+            }
+        }
+    }
+    
+    @inlinable
+    public func disown() {
+        parents = []
+    }
+    
+    @inlinable
+    public func backward(_ grad: [T] = Array(repeating: 1.0, count: 0), printSteps: Bool = false, printParams: Bool = false) {
+        if parents.count != 0 || gradient != nil {
+            if gradient == nil {
+                gradient = [T](repeating: 0, count: data.count)
+            }
             // Check if the gradient sizes match
             let grad = grad.isEmpty ? [T](repeating: 1.0, count: gradient!.count) : grad
             // Accumulate gradients
             gradient = add(gradient!, grad)
             if printSteps {
                 print("Grad At Operation: \(operation ?? "Leaf")")
-                print(gradient!)
+                print(Tensor(gradient!, shape: shape))
+            }
+            if printParams {
+                if operation != nil {
+                    if operation!.contains("Weight") || operation!.contains("Bias") {
+                        print(operation!)
+                        print(Tensor(gradient!, shape: shape))
+                    }
+                }
+            }
+            if operation != nil {
+                if operation!.contains("FG") {
+                    print("Gradient of Operation \(operation!):")
+                    print(Tensor(gradient!, shape: shape))
+                }
             }
         }
         for (parent, local) in parents {
-            guard parent.gradient != nil else {
+            guard parent.parents.count != 0 || parent.gradient != nil else {
                 continue
             }
             let localGradients = local(self)
-            parent.backward(localGradients, printSteps: printSteps)
+            parent.backward(localGradients, printSteps: printSteps, printParams: printParams)
         }
         if parents.count != 0 {
-            gradient = nil
+            if printSteps || printParams {
+                clearGrad()
+            } else {
+                gradient = nil
+            }
         }
     }
 }
 
 @inlinable
-public func upperTriangle<T: TensorType>(rows: Int, cols: Int, upper: T, lower: T) -> [T] {
+public func upperTriangle<T: TensorComplex>(rows: Int, cols: Int, upper: T, lower: T) -> [T] {
     var result = [T](repeating: 0, count: rows * cols)
     if T.self == Float.self {
         result.withUnsafeMutableBufferPointer { oBuffer in
@@ -640,7 +973,7 @@ public func upperTriangle<T: TensorType>(rows: Int, cols: Int, upper: T, lower: 
 }
 
 @inlinable
-public func lowerTriangle<T: TensorType>(rows: Int, cols: Int, upper: T, lower: T) -> [T] {
+public func lowerTriangle<T: TensorComplex>(rows: Int, cols: Int, upper: T, lower: T) -> [T] {
     var result = [T](repeating: 0, count: rows * cols)
     if T.self == Float.self {
         result.withUnsafeMutableBufferPointer { oBuffer in
@@ -670,7 +1003,7 @@ public func lowerTriangle<T: TensorType>(rows: Int, cols: Int, upper: T, lower: 
 }
 
 @inlinable
-public func upperTriangle<T: TensorType>(shape: [Int], upper: T, lower: T) -> Tensor<T> {
+public func upperTriangle<T: TensorComplex>(shape: [Int], upper: T, lower: T) -> Tensor<T> {
     let count = shape.reduce(1, *) / shape.last! / shape.dropLast().last!
     var result = [T]()
     for _ in 0..<count {
@@ -680,7 +1013,7 @@ public func upperTriangle<T: TensorType>(shape: [Int], upper: T, lower: T) -> Te
 }
 
 @inlinable
-public func lowerTriangle<T: TensorType>(shape: [Int], upper: T, lower: T) -> Tensor<T> {
+public func lowerTriangle<T: TensorComplex>(shape: [Int], upper: T, lower: T) -> Tensor<T> {
     let count = shape.reduce(1, *) / shape.last! / shape.dropLast().last!
     var result = [T]()
     for _ in 0..<count {
@@ -690,7 +1023,7 @@ public func lowerTriangle<T: TensorType>(shape: [Int], upper: T, lower: T) -> Te
 }
 
 @inlinable
-public func repeatArray<T: TensorType>(_ input: [T], count: Int) -> [T] {
+public func repeatArray<T: TensorComplex>(_ input: [T], count: Int) -> [T] {
     let inputSize = input.count
     let outputSize = inputSize * count
     var result = [T](repeating: 0, count: outputSize)
@@ -761,7 +1094,7 @@ public func calculateIndex(strides: [Int], index: [Int]) -> Int {
     return a.reduce(0, +)
 }
 @inlinable
-public func sum<T: TensorType>(_ input: [T], shape: [Int], along: Int) -> [T] {
+public func sum<T: TensorComplex>(_ input: [T], shape: [Int], along: Int) -> [T] {
     // Ensure the dimension is valid
     precondition(along < shape.count, "Invalid dimension for sum")
 
@@ -844,7 +1177,7 @@ public func flattenedIndex(of index: Int, withShape newShape: [Int], along dimen
 }
 
 @inlinable
-public func sum<T: TensorType>(_ data: [T], shape: [Int], along: [Int]) -> [T] {
+public func sum<T: TensorComplex>(_ data: [T], shape: [Int], along: [Int]) -> [T] {
     var result = data
     for i in along {
         result = sum(result, shape: shape, along: i)
@@ -853,7 +1186,7 @@ public func sum<T: TensorType>(_ data: [T], shape: [Int], along: [Int]) -> [T] {
 }
 
 @inlinable
-public func sum<T: TensorType>(_ data: [T], shape: [Int], to: [Int]) -> [T] {
+public func sum<T: TensorComplex>(_ data: [T], shape: [Int], to: [Int]) -> [T] {
     var result = data
     var toShape = to
     while toShape.count < shape.count {
@@ -869,7 +1202,7 @@ public func sum<T: TensorType>(_ data: [T], shape: [Int], to: [Int]) -> [T] {
 }
 
 @inlinable
-public func sum<T: TensorType>(_ data: [T], shape: [Int]) -> T {
+public func sum<T: TensorComplex>(_ data: [T], shape: [Int]) -> T {
     var result = data
     var toShape = [T](repeating: 1, count: shape.count)
     while toShape.count < shape.count {
@@ -899,7 +1232,7 @@ public func mergeShapes(_ a: [Int], _ b: [Int]) -> [Int] {
 }
 
 @inlinable
-public func multiply<T: TensorType>(_ input: [T], s: T) -> [T] {
+public func multiply<T: TensorComplex>(_ input: [T], s: T) -> [T] {
     var result = [T]()
     let totalElements = input.count
     
@@ -953,7 +1286,7 @@ public func multiply<T: TensorType>(_ input: [T], s: T) -> [T] {
 }
 
 @inlinable
-public func divide<T: TensorType>(_ input: [T], s: T) -> [T] {
+public func divide<T: TensorComplex>(_ input: [T], s: T) -> [T] {
     var result = [T]()
     let totalElements = input.count
     
@@ -1009,7 +1342,7 @@ public func divide<T: TensorType>(_ input: [T], s: T) -> [T] {
 }
 
 @inlinable
-public func inverseDivide<T: TensorType>(_ input: [T], s: T) -> [T] {
+public func inverseDivide<T: TensorComplex>(_ input: [T], s: T) -> [T] {
     var result = [T]()
     let totalElements = input.count
     
@@ -1065,7 +1398,7 @@ public func inverseDivide<T: TensorType>(_ input: [T], s: T) -> [T] {
 }
 
 @inlinable
-public func matrixMultiply<T: TensorType>(_ a: [T], _ b: [T], aShape: [Int], bShape: [Int]) -> [T] {
+public func matrixMultiply<T: TensorComplex>(_ a: [T], _ b: [T], aShape: [Int], bShape: [Int]) -> [T] {
     guard aShape.count >= 2 && bShape.count >= 2 else {
         fatalError("Not enough dimensions for matrix multiplication")
     }
@@ -1156,7 +1489,7 @@ public func matrixMultiply<T: TensorType>(_ a: [T], _ b: [T], aShape: [Int], bSh
 }
 
 @inlinable
-public func transpose<T: TensorType>(_ input: [T], shape: [Int]) -> [T] {
+public func transpose<T: TensorComplex>(_ input: [T], shape: [Int]) -> [T] {
     var result = [T]()
     let rows = shape.dropLast().last!
     let cols = shape.last!
@@ -1203,7 +1536,7 @@ public func transpose<T: TensorType>(_ input: [T], shape: [Int]) -> [T] {
 }
 
 @inlinable
-public func transpose<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
+public func transpose<T: TensorComplex>(_ input: Tensor<T>) -> Tensor<T> {
     var result = [T]()
     let rows = input.shape.dropLast().last!
     let cols = input.shape.last!
@@ -1256,7 +1589,7 @@ public func transpose<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
 }
 
 @inlinable
-public func add<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
+public func add<T: TensorComplex>(_ x: [T], _ y: [T]) -> [T] {
     guard x.count == y.count else {
         fatalError("Mismatching inputs to add function: \(x.count) & \(y.count)")
     }
@@ -1318,7 +1651,7 @@ public func add<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
 }
 
 @inlinable
-public func multiply<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
+public func multiply<T: TensorComplex>(_ x: [T], _ y: [T]) -> [T] {
     guard x.count == y.count else {
         fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
     }
@@ -1380,7 +1713,69 @@ public func multiply<T: TensorType>(_ x: [T], _ y: [T]) -> [T] {
 }
 
 @inlinable
-public func sin<T: TensorType>(_ x: [T]) -> [T] {
+public func divide<T: TensorComplex>(_ x: [T], _ y: [T]) -> [T] {
+    guard x.count == y.count else {
+        fatalError("Mismatching inputs to multiply() function: \(x.count) & \(y.count)")
+    }
+    let result = x.count
+    if T.self == Float.self {
+        var outputData = [T](repeating: 0, count: x.count)
+        
+        x.withUnsafeBufferPointer { lBuffer in
+            y.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                    vDSP_vdiv(
+                        lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        oBuffer.baseAddress! as! UnsafeMutablePointer<Float>, 1,
+                        vDSP_Length(result)
+                    )
+                }
+            }
+        }
+        
+        return outputData
+    } else if T.self == Double.self {
+        var outputData = [T](repeating: 0, count: result)
+        
+        x.withUnsafeBufferPointer { lBuffer in
+            y.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                    vDSP_vdivD(
+                        lBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                        rBuffer.baseAddress! as! UnsafePointer<Double>, 1,
+                        oBuffer.baseAddress! as! UnsafeMutablePointer<Double>, 1,
+                        vDSP_Length(result)
+                    )
+                }
+            }
+        }
+        
+        return outputData
+    } else {
+        var outputData = [Float](repeating: 0, count: result)
+        
+        let lDataFloat = x.compactMap { Float($0) }
+        let rDataFloat = y.compactMap { Float($0) }
+        
+        lDataFloat.withUnsafeBufferPointer { lBuffer in
+            rDataFloat.withUnsafeBufferPointer { rBuffer in
+                outputData.withUnsafeMutableBufferPointer { oBuffer in
+                    vDSP_vdiv(
+                        lBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        rBuffer.baseAddress! as! UnsafePointer<Float>, 1,
+                        oBuffer.baseAddress! as! UnsafeMutablePointer<Float>, 1,
+                        vDSP_Length(result)
+                    )
+                }
+            }
+        }
+        return outputData as! [T]
+    }
+}
+
+@inlinable
+public func sin<T: TensorComplex>(_ x: [T]) -> [T] {
     var totalSize = Int32(x.count)
     var result = [T](repeating: 0, count: x.count)
     if T.self == Float.self {
@@ -1417,7 +1812,7 @@ public func sin<T: TensorType>(_ x: [T]) -> [T] {
 }
 
 @inlinable
-public func cos<T: TensorType>(_ x: [T]) -> [T] {
+public func cos<T: TensorComplex>(_ x: [T]) -> [T] {
     var totalSize = Int32(x.count)
     var result = [T](repeating: 0, count: x.count)
     if T.self == Float.self {
@@ -1454,7 +1849,7 @@ public func cos<T: TensorType>(_ x: [T]) -> [T] {
 }
 
 @inlinable
-public func concatenate<T: TensorType>(_ x: [Tensor<T>], dimension: Int) -> Tensor<T> {
+public func concatenate<T: TensorComplex>(_ x: [Tensor<T>], dimension: Int) -> Tensor<T> {
     var totalLength = 0
     var comp = x[0].shape
     comp.remove(at: dimension)

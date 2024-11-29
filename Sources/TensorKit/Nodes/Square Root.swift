@@ -13,7 +13,7 @@ import Foundation
 import Accelerate
 
 @inlinable
-public func sqrt<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
+public func sqrt<T: TensorComplex>(_ input: Tensor<T>) -> Tensor<T> {
     let result = Tensor<T>(.empty, shape: input.shape, calculate_grad: input.gradient != nil)
     var size = Int32(input.dataSize)
     if T.self == Float.self {

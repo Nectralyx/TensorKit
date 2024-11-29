@@ -13,7 +13,7 @@ import TensorKit
 import Accelerate
 
 @inlinable
-public func log<T: TensorType>(_ x: Tensor<T>) -> Tensor<T> {
+public func log<T: TensorComplex>(_ x: Tensor<T>) -> Tensor<T> {
     let result = Tensor<T>(.zeros, shape: x.shape, calculate_grad: x.gradient != nil)
     let count = Int32(x.dataSize)
     if T.self == Float.self {

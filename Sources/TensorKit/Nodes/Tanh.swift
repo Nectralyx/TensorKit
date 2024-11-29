@@ -12,12 +12,15 @@
 import Foundation
 
 @inlinable
-public func Tanh<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
+public func Tanh<T: TensorComplex>(_ input: Tensor<T>) -> Tensor<T> {
     let result = Tensor<T>(.empty, shape: input.shape, calculate_grad: input.gradient != nil)
     result.data = input.data.map{ Tanh($0) }
     result.operation = "Tanh"
     result.parents = [
-        (input, { v in v.gradient!.map{ TanhDerivative($0) * $0 } })
+        (input, { v in
+            let map = input.map{ TanhDerivative($0) }
+            return multiply(v.gradient!, map)
+        })
     ]
     return result
 }

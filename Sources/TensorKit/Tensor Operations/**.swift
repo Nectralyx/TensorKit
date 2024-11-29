@@ -18,8 +18,25 @@ public extension Tensor {
         guard lhs.shape.last! == rhs.shape.dropLast().last! else {
             fatalError("Cannot perform matrix multiplication between tensors of shapes \(lhs.shape) and \(rhs.shape)")
        }
+        while lhs.shape.count < rhs.shape.count {
+            lhs.shape.insert(1, at: 0)
+        }
+        while rhs.shape.count < lhs.shape.count {
+            rhs.shape.insert(1, at: 0)
+        }
+        let final: [Int] = zip(lhs.shape.dropLast(2), rhs.shape.dropLast(2)).map {
+            if $0.0 == $0.1 {
+                return $0.0
+            } else if $0.0 > $0.1 && $0.1 == 1 {
+               return $0.0
+            } else if $0.1 > $0.0 && $0.0 == 1 {
+               return $0.1
+            } else {
+                fatalError("Could not access for some reason: \(lhs.shape), \(rhs.shape)")
+            }
+        } + [lhs.shape[lhs.shape.count - 2], rhs.shape[rhs.shape.count - 1]]
         
-        var finalShape = mergeShapes(lhs.shape, rhs.shape)
+        var finalShape = final.flatMap{ $0 }
         var lefttargetSize = finalShape
         lefttargetSize.removeLast(2)
         lefttargetSize.append(contentsOf: [lhs.shape.dropLast().last!, lhs.shape.last!])

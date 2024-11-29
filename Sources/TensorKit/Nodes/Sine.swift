@@ -12,7 +12,7 @@ import Foundation
 import Accelerate
 
 @inlinable
-public func sin<T: TensorType>(_ x: Tensor<T>) -> Tensor<T> {
+public func sin<T: TensorComplex>(_ x: Tensor<T>) -> Tensor<T> {
     var totalSize = Int32(x.dataSize)
     let result = Tensor<T>(.empty, shape: x.shape, calculate_grad: x.gradient != nil ? true : false)
     var outputData = [T](repeating: 0, count: x.dataSize)

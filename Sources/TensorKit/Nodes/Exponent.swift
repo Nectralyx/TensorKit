@@ -13,7 +13,7 @@ import Foundation
 import Accelerate
 
 @usableFromInline
-func hiddenExp<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
+func hiddenExp<T: TensorComplex>(_ input: Tensor<T>) -> Tensor<T> {
     let result = Tensor<T>(.empty, shape: input.shape)
     var size = Int32(input.dataSize)
     if T.self == Float.self {
@@ -52,7 +52,7 @@ func hiddenExp<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
 }
 
 @inlinable
-public func exp<T: TensorType>(_ input: Tensor<T>) -> Tensor<T> {
+public func exp<T: TensorComplex>(_ input: Tensor<T>) -> Tensor<T> {
     let result = Tensor<T>(.empty, shape: input.shape, calculate_grad: input.gradient != nil)
     var size = Int32(input.dataSize)
     if T.self == Float.self {

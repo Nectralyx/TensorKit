@@ -13,7 +13,7 @@ import Foundation
 import Accelerate
 
 @usableFromInline
-internal func hiddenpow<T: TensorType>(_ input: Tensor<T>, _ exp: T) -> Tensor<T> {
+func hiddenpow<T: TensorComplex>(_ input: Tensor<T>, _ exp: T) -> Tensor<T> {
     var size = Int32(input.dataSize)
     let exponential = [T](repeating: exp, count: input.dataSize)
     let result = Tensor<T>(.empty, shape: input.shape)
@@ -53,7 +53,7 @@ internal func hiddenpow<T: TensorType>(_ input: Tensor<T>, _ exp: T) -> Tensor<T
 }
 
 @inlinable
-public func pow<T: TensorType>(_ input: Tensor<T>, _ exp: T) -> Tensor<T> {
+public func pow<T: TensorComplex>(_ input: Tensor<T>, _ exp: T) -> Tensor<T> {
     var size = Int32(input.dataSize)
     let exponential = [T](repeating: exp, count: input.dataSize)
     let result = Tensor<T>(.empty, shape: input.shape, calculate_grad: input.gradient != nil)
@@ -99,7 +99,7 @@ public func pow<T: TensorType>(_ input: Tensor<T>, _ exp: T) -> Tensor<T> {
 }
 
 @usableFromInline
-internal func hiddenpow<T: TensorType>(_ input: Tensor<T>, _ exp: Tensor<T>) -> Tensor<T> {
+func hiddenpow<T: TensorComplex>(_ input: Tensor<T>, _ exp: Tensor<T>) -> Tensor<T> {
     let finalShape = mergeShapes(exp.shape, input.shape)
     let exp = exp.expand(to: finalShape)
     let input = input.expand(to: finalShape)
@@ -142,7 +142,7 @@ internal func hiddenpow<T: TensorType>(_ input: Tensor<T>, _ exp: Tensor<T>) -> 
 }
 
 @inlinable
-public func pow<T: TensorType>(_ input: Tensor<T>, _ exp: Tensor<T>) -> Tensor<T> {
+public func pow<T: TensorComplex>(_ input: Tensor<T>, _ exp: Tensor<T>) -> Tensor<T> {
     let finalShape = mergeShapes(exp.shape, input.shape)
     let exp = exp.expand(to: finalShape)
     let input = input.expand(to: finalShape)

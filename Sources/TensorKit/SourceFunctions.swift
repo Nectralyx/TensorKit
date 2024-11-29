@@ -25,7 +25,7 @@ public extension Array {
 }
 
 @inlinable
-public func softmax<T: TensorType>(_ x: [T]) -> [T] {
+public func softmax<T: TensorComplex>(_ x: [T]) -> [T] {
     // Find the maximum value in the array
         let maxVal = x.max() ?? 0.0
         
@@ -42,7 +42,7 @@ public func softmax<T: TensorType>(_ x: [T]) -> [T] {
 }
 
 @inlinable
-func softmaxJacobian<T: TensorType>(_ Y: [T]) -> [[T]] {
+func softmaxJacobian<T: TensorComplex>(_ Y: [T]) -> [[T]] {
     let n = Y.count
     var softmax = Array(repeating: Array(repeating: 0 as T, count: n), count: n)
     
@@ -64,52 +64,57 @@ func softmaxJacobian<T: TensorType>(_ Y: [T]) -> [[T]] {
 }
 
 @inlinable
-public func ReLU<T: TensorType>(_ x: T) -> T {
+public func ReLU<T: TensorComplex>(_ x: T) -> T {
     return max(0, x)
 }
 
 // Define the derivative of the ReLU function
 @inlinable
-func ReLUDerivative<T: TensorType>(_ x: T) -> T {
+func ReLUDerivative<T: TensorComplex>(_ x: T) -> T {
     return x > 0 ? 1.0 : 0.0
 }
 
 @inlinable
-public func Sigmoid<T: TensorType>(_ x: T) -> T {
+public func Sigmoid<T: TensorComplex>(_ x: T) -> T {
     return T(1.0) / (T(1.0) + T(exp(-Double(x))))
 }
 
 @inlinable
-func SigmoidDerivative<T: TensorType>(_ x: T) -> T {
+func SigmoidDerivative<T: TensorComplex>(_ x: T) -> T {
     let s = Sigmoid(x)
     return s * (1.0 - s)
 }
 
 @inlinable
-public func Tanh<T: TensorType>(_ x: T) -> T {
+public func Tanh<T: TensorComplex>(_ x: T) -> T {
     return T((exp(Double(x)) - exp(-Double(x))) / (exp(Double(x)) + exp(-Double(x))))
 }
 
 @inlinable
-func TanhDerivative<T: TensorType>(_ x: T) -> T {
+func TanhDerivative<T: TensorComplex>(_ x: T) -> T {
     let t = Tanh(x)
     return 1.0 - t * t
 }
 
 @inlinable
-public func LeakyReLU<T: TensorType>(_ x: T, alpha: T = 0.01) -> T {
+public func LeakyReLU<T: TensorComplex>(_ x: T, alpha: T = 0.01) -> T {
     return x > 0 ? 1.0 : alpha * x
 }
 
 @inlinable
-func LeakyReLUDerivative<T: TensorType>(_ x: T, alpha: T = 0.01) -> T {
+func LeakyReLUDerivative<T: TensorComplex>(_ x: T, alpha: T = 0.01) -> T {
     return x > 0 ?  1.0 : alpha
 }
 
+public protocol TensorComplex: Codable, BinaryFloatingPoint, Equatable, Hashable {}
+extension Float: TensorComplex {}
+extension Double: TensorComplex {}
 
-public protocol TensorType: Codable, BinaryFloatingPoint, Equatable {}
-extension Float: TensorType {}
-extension Double: TensorType {}
+public protocol TensorType: Codable {}
+extension Int: TensorType {}
+extension Int32: TensorType {}
+extension Int16: TensorType {}
+extension Bool: TensorType {}
 
 //extension Float16: TensorType {}
 
