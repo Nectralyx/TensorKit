@@ -681,7 +681,6 @@ open class Tensor<T: TensorComplex>: Codable, CustomStringConvertible, Sequence,
     
     @inlinable
     public func select(_ indices: [[Int]]) -> Tensor {
-        print(data)
         var resultData = [T](repeating: 0, count: indices.count)
         for (index, i) in indices.enumerated() {
             resultData[index] = data[ravelIndex(i)]
@@ -874,6 +873,48 @@ open class Tensor<T: TensorComplex>: Codable, CustomStringConvertible, Sequence,
             })
         ]
     }*/
+    
+    @inlinable
+    public func isolate(_ dim: Int, _ index: Int, keepDims: Bool = true) -> Tensor<T> {
+        guard dim < shape.count && index < shape[dim] else {
+            fatalError("Cannot isolate data on dimension \(dim), index \(index). Tensor is shape: \(shape).")
+        }
+        
+        let strides = generateStrides(shape)
+        let dimStride = strides[dim]
+        let numValues = dataSize / shape[dim]
+        var result = [T](repeating: 0, count: numValues)
+        var multiIndex = [Int](repeating: 0, count: shape.count)
+
+        for i in 0..<numValues {
+                var flatIdx = 0
+                var idxInResult = i
+                for d in stride(from: shape.count - 1, through: 0, by: -1) {
+                    if d == dim {
+                        multiIndex[d] = index
+                    } else {
+                        multiIndex[d] = idxInResult % shape[d]
+                        idxInResult /= shape[d]
+                    }
+                    flatIdx += multiIndex[d] * strides[d]
+                }
+                result[i] = data[flatIdx]
+            }
+
+        var outputShape: [Int] = []
+        if keepDims {
+            outputShape = shape
+            outputShape.remove(at: dim)
+            outputShape.insert(1, at: dim)
+        } else {
+            outputShape = [numValues]
+        }
+
+        let output = Tensor(result, shape: outputShape)
+        output.operation = "Isolate [Dimension: \(dim), Index: \(index)]"
+        return output
+    }
+    
     @inlinable
     public func clearGrad() {
         if gradient != nil {
@@ -1089,9 +1130,20 @@ public func generateStrides(_ shape: [Int]) -> [Int] {
     return result
 }
 @inlinable
-public func calculateIndex(strides: [Int], index: [Int]) -> Int {
+public func flatIndex(strides: [Int], index: [Int]) -> Int {
     let a = zip(strides, index).map(*)
     return a.reduce(0, +)
+}
+
+@inlinable
+public func unflattenedIntex(_ index: Int, strides: [Int], shape: [Int]) -> [Int] {
+    var multiIndex = [Int](repeating: 0, count: shape.count)
+    var remainder = index
+        for i in 0..<shape.count {
+            multiIndex[i] = remainder / strides[i]
+            remainder %= strides[i]
+        }
+    return multiIndex
 }
 @inlinable
 public func sum<T: TensorComplex>(_ input: [T], shape: [Int], along: Int) -> [T] {

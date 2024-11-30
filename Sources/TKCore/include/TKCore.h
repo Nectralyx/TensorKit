@@ -948,7 +948,7 @@ static void argmax(const float* x, const int* shape, const int dim, const int di
             int index = blockStartIndex + j * blockStride;
             if (x[index] > max_val) {
                 max_val = x[index];
-                max_idx = index;
+                max_idx = j;
             }
         }
         
@@ -966,7 +966,7 @@ static void argmaxD(const double* x, const int* shape, const int dim, const int 
             int index = blockStartIndex + j * blockStride;
             if (x[index] > max_val) {
                 max_val = x[index];
-                max_idx = index;
+                max_idx = j;
             }
         }
         
