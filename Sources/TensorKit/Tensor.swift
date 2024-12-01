@@ -53,9 +53,7 @@ open class Tensor<T: TensorComplex>: Codable, CustomStringConvertible, Sequence,
         self.data = input.data
         self.gradient = input.gradient
         self.operation = "Clone Of: \(input.operation)"
-        self.parents = [
-            (input, { v in v.gradient! })
-        ]
+        self.parents = input.parents
     }
     @inlinable
     public init(_ input: [[[T]]], calculate_grad: Bool = false) {
@@ -135,7 +133,7 @@ open class Tensor<T: TensorComplex>: Codable, CustomStringConvertible, Sequence,
         self.data = try container.decode([T].self, forKey: .data)
         self.shape = try container.decode([Int].self, forKey: .shape)
         self.operation = try container.decode(String?.self, forKey: .operation)
-        self.gradient = try container.decode([T].self, forKey: .gradient)
+        self.gradient = try container.decode([T]?.self, forKey: .gradient)
         //self.calculate_grad = try container.decode(Bool.self, forKey: .calculate_grad)
     }
     enum CodingKeys: CodingKey {
@@ -352,6 +350,7 @@ open class Tensor<T: TensorComplex>: Codable, CustomStringConvertible, Sequence,
             }
         }
         let result = Tensor(broadcastedData, shape: targetDimensions, calculate_grad: gradient != nil)
+        broadcastedData
         result.operation = "Expand"
         result.parents = [
             (self, { v in TensorKit.sum(v.gradient!, shape: v.shape, along: gradientMap)})
@@ -916,6 +915,56 @@ open class Tensor<T: TensorComplex>: Codable, CustomStringConvertible, Sequence,
     }
     
     @inlinable
+    public func shuffle(_ dim: Int?) -> Tensor<T> {
+        if dim != nil {
+            guard dim! < shape.count else {
+                fatalError("Cannot shuffle along dimension \(dim!); shape is: \(shape)")
+            }
+        }
+        
+        guard let dim = dim else {
+            let shuffleMap = intRamp(dataSize).shuffled()
+            let shuffled = shuffleMap.map{ data[$0] }
+            let output = Tensor(shuffled, shape: shape, calculate_grad: gradient != nil)
+            if gradient != nil {
+                output.parents = [
+                    (self, { v in
+                        var inverseIndexMap = Array(repeating: 0, count: shuffleMap.count)
+                        for (shuffledIndex, originalIndex) in shuffleMap.enumerated() {
+                            inverseIndexMap[originalIndex] = shuffledIndex
+                        }
+                        return inverseIndexMap.map{ v.gradient![$0] }
+                    })
+                ]
+            }
+            output.operation = "Shuffle [All]"
+            return output
+        }
+        
+        let numApplied = dim == 0 ? 1 : shape[0..<dim].reduce(1, *)
+        //var shuffleMap = [Int](repeating: 0, count: shape[0...dim].reduce(1, *))
+        /*let stride = generateStrides(shape)[dim]
+        let resultData = [T](repeating: 0, count: dataSize)
+        for i in 0..<numApplied {
+            let shuffleMap = intRamp(shape[dim])
+            let outerStride = numApplied
+            for j in 0..<shape[dim] {
+                resultData[j * stride..<(j + 1) * stride] =
+            }
+        }*/
+        var resultData = data
+        let indices = intRamp(shape[dim]).shuffled()
+        let strides = generateStrides(shape)
+        for flattenedIndex in 0..<dataSize {
+            var multiIndex = unflattenedIndex(flattenedIndex, strides: shape, shape: shape)
+            multiIndex[dim] = indices[multiIndex[dim]]
+            let targetFlatindex = flatIndex(strides: strides, index: multiIndex)
+            resultData[targetFlatindex] = data[flattenedIndex]
+        }
+        return Tensor(resultData, shape: shape)
+    }
+    
+    @inlinable
     public func clearGrad() {
         if gradient != nil {
             if T.self == Float.self {
@@ -981,6 +1030,57 @@ open class Tensor<T: TensorComplex>: Codable, CustomStringConvertible, Sequence,
             }
         }
     }
+}
+
+@inlinable
+public func ramp<T: TensorComplex>(_ count: Int) -> [T] {
+    if T.self == Float.self  {
+        var start: Float = 0
+        var end = Float(count - 1)
+        let result = [Float](unsafeUninitializedCapacity: count) { buffer, initializedCount in
+            vDSP_vgen(
+                &start,
+                &end,
+                buffer.baseAddress!,
+                1,
+                vDSP_Length(count)
+            )
+            initializedCount = count
+        }
+        return result as! [T]
+    } else if T.self == Double.self {
+        var start: Double = 0
+        var end = Double(count - 1)
+        let result = [Double](unsafeUninitializedCapacity: count) { buffer, initializedCount in
+            vDSP_vgenD(
+                &start,
+                &end,
+                buffer.baseAddress!,
+                1,
+                vDSP_Length(count)
+            )
+            initializedCount = count
+        }
+        return result as! [T]
+    }
+    return []
+}
+
+@inlinable
+public func intRamp(_ count: Int) -> [Int] {
+    var start: Float = 0
+    var end = Float(count - 1)
+    let result = [Float](unsafeUninitializedCapacity: count) { buffer, initializedCount in
+        vDSP_vgen(
+            &start,
+            &end,
+            buffer.baseAddress!,
+            1,
+            vDSP_Length(count)
+        )
+        initializedCount = count
+    }
+    return result.map{ Int($0) }
 }
 
 @inlinable
@@ -1136,7 +1236,7 @@ public func flatIndex(strides: [Int], index: [Int]) -> Int {
 }
 
 @inlinable
-public func unflattenedIntex(_ index: Int, strides: [Int], shape: [Int]) -> [Int] {
+public func unflattenedIndex(_ index: Int, strides: [Int], shape: [Int]) -> [Int] {
     var multiIndex = [Int](repeating: 0, count: shape.count)
     var remainder = index
         for i in 0..<shape.count {
