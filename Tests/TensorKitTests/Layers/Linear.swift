@@ -2,7 +2,7 @@
 //  Linear.swift
 //  Synapse
 //
-//  Created by Morgan Keay on 2024-08-14.
+// 
 //
 
 import Foundation
