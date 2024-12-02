@@ -2,7 +2,7 @@
 //  SDPA.swift
 //  Nucleus
 //
-//  Created by Morgan Keay on 2024-10-05.
+// 
 //
 
 import Foundation
