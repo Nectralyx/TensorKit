@@ -2,7 +2,7 @@
 //  MultiHeadAttention.swift
 //  Synapse
 //
-//  Created by Morgan Keay on 2024-05-29.
+//  
 //
 
 import Foundation
