@@ -2,7 +2,7 @@
 //  Parameter.swift
 //  Synapse
 //
-//  Created by Morgan Keay on 2024-07-18.
+// 
 //
 
 import Foundation
