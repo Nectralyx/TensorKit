@@ -5,21 +5,52 @@
  */
 
 import XCTest
-@testable import TensorKit
+import TensorKit
 
 final class TensorKitTests: XCTestCase {
-    func testExample() throws {
-        // XCTest Documentation
-        // https://developer.apple.com/documentation/xctest
-        let tt1 = CFAbsoluteTimeGetCurrent()
-        let t4 = TensorKit.Tensor<Float>(.zeros, shape: [1000, 1000, 1000])
-        let tt2 = CFAbsoluteTimeGetCurrent()
-        let t5 = TensorKit.Tensor<Float>(.ones, shape: [1000, 1000, 1000])
-        let tt3 = CFAbsoluteTimeGetCurrent()
-        let t6 = t4 + t5
-        let tt4 = CFAbsoluteTimeGetCurrent()
-        print("B: \(tt2 - tt1) : \(tt3 - tt2) : \(tt4 - tt3)")
-        //print(t5)
-        //print(t6)
+    
+    func testTensorPerformance() throws {
+        //LEGEND
+        // 3: <sos>
+        // 4: <eos>
+        // 5: <pad>
+        
+        let input = Tensor<Float>([
+            [0, 1, 2, 4, 5]
+        ], calculate_grad: false)
+        let target = Tensor<Float>([
+            [3, 2, 1, 0, 4]
+        ], calculate_grad: false)
+        let lossTarget = Tensor<Float>([
+            [2, 1, 0, 4, 5]
+        ])
+        let learningRate = 1e-3
+        let transformer = StandardTransformer<Float>(
+            model_size: 512,
+            num_Embeddings: 6,
+            seq_length: 5,
+            num_heads: 8,
+            num_layers: 6,
+            dropRate: 0.0,
+            eos: 4,
+            pad: 5,
+            sos: 3,
+            initializer: .xavier_glorot
+        )
+        
+        let optim = ADAMOptimizer(parameters: transformer.parameters, learningRate: Float(learningRate))
+        
+        transformer.training = true
+        
+        for i in 0..<500 {
+            let output = transformer.forward(input, target).squeeze()
+            let loss = crossEntropy(predictions: output, targets: lossTarget, ignore_index: [5])
+            loss.backward(printSteps: false)
+            print("Epoch: \(i) | Loss: \(loss)")
+            optim.step()
+            optim.resetGrad()
+        }
+        print(transformer.forward(input))
     }
+    // If the operations were optimized properly and leaks didn't occur, this function *should* run in < 1 minute, and require small amounts of memory.
 }
