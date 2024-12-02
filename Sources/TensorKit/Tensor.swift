@@ -1164,52 +1164,6 @@ public func lowerTriangle<T: TensorComplex>(shape: [Int], upper: T, lower: T) ->
 }
 
 @inlinable
-public func repeatArray<T: TensorComplex>(_ input: [T], count: Int) -> [T] {
-    let inputSize = input.count
-    let outputSize = inputSize * count
-    var result = [T](repeating: 0, count: outputSize)
-    
-    if T.self == Float.self {
-        result.withUnsafeMutableBufferPointer{ oBuffer in
-            input.withUnsafeBufferPointer{ iBuffer in
-                TKCore.repeatArray(
-                    iBuffer.baseAddress! as? UnsafePointer<Float>,
-                    oBuffer.baseAddress! as? UnsafeMutablePointer<Float>,
-                    inputSize,
-                    count
-                )
-            }
-        }
-        return result
-    } else if T.self == Double.self {
-        result.withUnsafeMutableBufferPointer{ oBuffer in
-            input.withUnsafeBufferPointer{ iBuffer in
-                TKCore.repeatArrayD(
-                    iBuffer.baseAddress! as? UnsafePointer<Double>,
-                    oBuffer.baseAddress! as? UnsafeMutablePointer<Double>,
-                    inputSize,
-                    count
-                )
-            }
-        }
-        return result
-    } else {
-        var Newresult = result.map{ Float($0) }
-        Newresult.withUnsafeMutableBufferPointer{ oBuffer in
-            input.map{ Float($0) }.withUnsafeBufferPointer{ iBuffer in
-                TKCore.repeatArray(
-                    iBuffer.baseAddress! as? UnsafePointer<Float>,
-                    oBuffer.baseAddress!,
-                    inputSize,
-                    count
-                )
-            }
-        }
-        return result.map{ T($0) }
-    }
-}
-
-@inlinable
 public func selectShape(from shape: [Int], using indices: [Int]) -> [Int] {
     var selectedShape: [Int] = []
     for index in indices {

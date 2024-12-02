@@ -348,37 +348,6 @@ double* matrixMultiplyD(const double* a, const double* b, const int* aShape, con
     return result;
 }
 
-static void repeatArray(const float* input, float* output, size_t inputSize, size_t repeatCount) {
-    size_t totalSize = inputSize * repeatCount;
-
-    // Copy the input array to the output array once
-    std::memcpy(output, input, inputSize * sizeof(float));
-
-    // Use loop unrolling to copy blocks of data efficiently
-    size_t currentSize = inputSize;
-    while (currentSize < totalSize) {
-        size_t copySize = std::min(currentSize, totalSize - currentSize);
-        std::memcpy(output + currentSize, output, copySize * sizeof(float));
-        currentSize += copySize;
-    }
-}
-
-static void repeatArrayD(const double* input, double* output, size_t inputSize, size_t repeatCount) {
-    size_t totalSize = inputSize * repeatCount;
-
-    // Copy the input array to the output array once
-    std::memcpy(output, input, inputSize * sizeof(double));
-
-    // Use loop unrolling to copy blocks of data efficiently
-    size_t currentSize = inputSize;
-    while (currentSize < totalSize) {
-        size_t copySize = std::min(currentSize, totalSize - currentSize);
-        std::memcpy(output + currentSize, output, copySize * sizeof(double));
-        currentSize += copySize;
-    }
-}
-
-
 static void sum(const float* a, float result, int size) {
     for (int i = 0; i < size; i++) {
         result += a[i];
