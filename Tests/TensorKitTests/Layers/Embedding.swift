@@ -2,7 +2,7 @@
 //  Embedding.swift
 //  Synapse
 //
-//  Created by Morgan Keay on 2024-08-11.
+//  
 //
 
 import Foundation
