@@ -2,7 +2,7 @@
 //  Optimizers.swift
 //  Synapse
 //
-//  Created by Morgan Keay on 2024-06-02.
+// 
 //
 
 import Foundation
