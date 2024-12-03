@@ -2,7 +2,7 @@
 //  LossFunctions.swift
 //  Synapse
 //
-//  Created by Morgan Keay on 2024-05-17.
+//  
 //
 
 import Foundation
